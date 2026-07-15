@@ -1,0 +1,52 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# NuGet packages
+packages/
+
+# Logs
+*.log
+
+# Test results
+TestResults/
+
+# Publish output
+publish/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# ReSharper
+_ReSharper*/
+*.ReSharper
+
+# DotCover
+*.dotCover
+
+# NUnit
+*.VisualState.xml
+TestResult.xml
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# Backup files
+*.bak
+*.orig

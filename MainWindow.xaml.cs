@@ -23,8 +23,8 @@ public partial class MainWindow : Window
 
         _server = new DnsServer(_blocklist);
 
-        _server.Log += line => Dispatcher.Invoke(() => AppendLog(line));
-        _blocklist.Log += line => Dispatcher.Invoke(() => AppendLog(line));
+        _server.Log += line => Dispatcher.InvokeAsync(() => AppendLog(line));
+        _blocklist.Log += line => Dispatcher.InvokeAsync(() => AppendLog(line));
 
         _blocklist.LoadSettings();
         RefreshUrlListBox();
