@@ -13,9 +13,12 @@ public partial class MainWindow : Window
     private readonly BlockLogService _blockLog = new();
     private readonly DnsServer _server;
     private readonly WebMonitorService _webMonitor;
+    private readonly TrayService _tray = new();
 
     private bool _initializing = true; // suppress control events during setup
     private bool _locked;
+    private bool _reallyExit;          // X hides to tray unless this is set
+    private bool _exitAfterUnlock;     // tray Exit while locked -> PIN first
     private int _failedAttempts;
     private DateTime _lastChartRedraw = DateTime.MinValue;
 
@@ -38,6 +41,11 @@ public partial class MainWindow : Window
             _blockLog.Record(domain);
             Dispatcher.InvokeAsync(OnBlockRecorded);
         };
+
+        // Tray events (raised on the UI thread)
+        _tray.OpenRequested += ShowFromTray;
+        _tray.LockRequested += LockUi;
+        _tray.ExitRequested += RequestExit;
 
         _blocklist.LoadSettings();
         _blocklist.LoadMeta();
@@ -64,6 +72,10 @@ public partial class MainWindow : Window
 
         Loaded += async (_, _) =>
         {
+            // Launched by the login task with --minimized: straight to tray
+            if (Environment.GetCommandLineArgs().Contains("--minimized"))
+                HideToTray();
+
             _blocklist.RebuildFromCache();
             UpdateCountLabel();
 
@@ -75,8 +87,6 @@ public partial class MainWindow : Window
             UpdateBlockStats();
             RedrawChart();
 
-            // At boot, other services can briefly hold port 53 or the
-            // network stack may not be ready — retry instead of giving up.
             await StartBridgeWithRetryAsync();
 
             if (_webMonitor.WasEnabled && _pin.HasPin)
@@ -84,6 +94,73 @@ public partial class MainWindow : Window
 
             await CheckForUpdatesAsync();
         };
+    }
+
+    // ---------- tray & window lifecycle ----------
+
+    private void HideToTray()
+    {
+        if (_pin.HasPin && !_locked)
+            LockUi();   // a hidden window must never be an unlocked window
+
+        Hide();
+        _tray.ShowMinimizedBalloon();
+    }
+
+    private void ShowFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+        if (_locked)
+            UnlockPinBox.Focus();
+    }
+
+    /// <summary>Tray "Exit": PIN-gated when locked, immediate otherwise.</summary>
+    private void RequestExit()
+    {
+        if (_locked)
+        {
+            _exitAfterUnlock = true;
+            ShowFromTray();
+            UnlockError.Text = "Enter the PIN to exit Drawbridge";
+            return;
+        }
+        ReallyExit();
+    }
+
+    private void ReallyExit()
+    {
+        _reallyExit = true;
+        Close();    // OnClosing lets it through; OnClosed stops services
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_reallyExit)
+        {
+            // The X button minimizes to the tray instead of exiting
+            e.Cancel = true;
+            HideToTray();
+            return;
+        }
+
+        if (_locked)
+        {
+            e.Cancel = true;
+            UnlockError.Text = "Unlock with the PIN to close Drawbridge";
+            return;
+        }
+
+        base.OnClosing(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _tray.Dispose();
+        _webMonitor.Stop();
+        _server.Stop();
+        base.OnClosed(e);
     }
 
     // ---------- start / stop ----------
@@ -117,7 +194,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Manual start (toggle button): one attempt, with a popup on failure.</summary>
+    /// <summary>Manual start (toggle button): one attempt, popup on failure.</summary>
     private void StartBridge()
     {
         if (_server.IsRunning) return;
@@ -155,6 +232,9 @@ public partial class MainWindow : Window
                              : "Bridge is down (not filtering)";
         ToggleButton.Content = up ? "Lower the Bridge (Stop)"
                                   : "Raise the Bridge (Start)";
+
+        _tray.SetStatus(up, up ? $"Drawbridge — filtering{ModeSuffix()}"
+                               : "Drawbridge — NOT filtering");
     }
 
     private void ToggleButton_Click(object sender, RoutedEventArgs e)
@@ -299,8 +379,8 @@ public partial class MainWindow : Window
         var days = _blockLog.LastDays(14);
         int max = Math.Max(1, days.Max(d => d.Count));
 
-        var barBrush = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-        var zeroBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x42, 0x52));
+        var barBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEF, 0x44, 0x44));
+        var zeroBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x42, 0x52));
 
         for (int i = 0; i < days.Count; i++)
         {
@@ -327,7 +407,7 @@ public partial class MainWindow : Window
             {
                 Text = day.ToString("dd"),
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA6)),
+                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x93, 0xA6)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 0),
             };
@@ -432,8 +512,16 @@ public partial class MainWindow : Window
         if (_pin.Verify(UnlockPinBox.Password))
         {
             UnlockUi();
+
+            if (_exitAfterUnlock)
+            {
+                _exitAfterUnlock = false;
+                ReallyExit();
+            }
             return;
         }
+
+        _exitAfterUnlock = false; // failed attempt cancels a pending exit
 
         _failedAttempts++;
         int delaySeconds = Math.Min(_failedAttempts * 2, 30);
@@ -451,17 +539,6 @@ public partial class MainWindow : Window
         UnlockPinBox.Focus();
     }
 
-    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
-    {
-        if (_locked)
-        {
-            e.Cancel = true;
-            UnlockError.Text = "Unlock with the PIN to close Drawbridge";
-            return;
-        }
-        base.OnClosing(e);
-    }
-
     // ---------- PIN management ----------
 
     private void UpdatePinUi()
@@ -473,6 +550,7 @@ public partial class MainWindow : Window
         RemovePinButton.Visibility = hasPin ? Visibility.Visible : Visibility.Collapsed;
         SetPinButton.Content = hasPin ? "Change PIN" : "Set PIN & lock";
         LockNowButton.Visibility = hasPin ? Visibility.Visible : Visibility.Collapsed;
+        _tray.LockMenuVisible = hasPin;
     }
 
     private void SetPinButton_Click(object sender, RoutedEventArgs e)
@@ -728,12 +806,5 @@ public partial class MainWindow : Window
             LogList.Items.RemoveAt(0);
 
         LogList.ScrollIntoView(LogList.Items[^1]);
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        _webMonitor.Stop();
-        _server.Stop();
-        base.OnClosed(e);
     }
 }

@@ -6,12 +6,26 @@ namespace Drawbridge.Core;
 
 /// <summary>
 /// Talks to Windows: points the system's DNS at Drawbridge (and back),
-/// and registers/unregisters launch-at-login via a scheduled task.
-/// Everything here requires the app to run elevated (see app.manifest).
+/// registers/unregisters launch-at-login, and provides the full cleanup
+/// used by the uninstaller. Requires elevation (see app.manifest).
 /// </summary>
 public static class SystemIntegration
 {
     private const string TaskName = "Drawbridge";
+    private const string FirewallRuleName = "Drawbridge Monitor";
+
+    // ---------- full cleanup (uninstaller / --cleanup) ----------
+
+    /// <summary>Undoes every system change Drawbridge can make: DNS back
+    /// to automatic, login task removed, web monitor firewall rule removed.
+    /// Safe to call even if some of them were never set.</summary>
+    public static void FullCleanup(Action<string>? log = null)
+    {
+        RestoreAutomaticDns(log);
+        DisableRunAtLogin(log);
+        Run("netsh", $"advfirewall firewall delete rule name=\"{FirewallRuleName}\"");
+        log?.Invoke("Full cleanup finished.");
+    }
 
     // ---------- system DNS ----------
 
@@ -59,8 +73,7 @@ public static class SystemIntegration
     /// <summary>
     /// Only real, active Ethernet / Wi-Fi adapters. Filters out loopback,
     /// tunnels, Wi-Fi Direct virtual adapters ("Local Area Connection* N"),
-    /// and WFP filter-driver bindings ("...-WFP ... Filter-0000") — none of
-    /// which should ever have DNS configured on them.
+    /// and WFP filter-driver bindings ("...-WFP ... Filter-0000").
     /// </summary>
     private static IEnumerable<NetworkInterface> ActiveAdapters() =>
         NetworkInterface.GetAllNetworkInterfaces().Where(n =>
@@ -76,10 +89,9 @@ public static class SystemIntegration
     // ---------- run at login ----------
 
     /// <summary>
-    /// Registers a scheduled task that starts Drawbridge (elevated, no UAC
-    /// prompt) 30 seconds after a user logs in. The delay lets the network
-    /// stack and other services settle first, so Drawbridge doesn't race
-    /// them for port 53 at boot.
+    /// Registers a scheduled task that starts Drawbridge minimized to the
+    /// tray (elevated, no UAC prompt) 30 seconds after login. The delay
+    /// lets the network stack settle so we don't race anyone for port 53.
     /// </summary>
     public static void EnableRunAtLogin(Action<string>? log = null)
     {
@@ -87,7 +99,7 @@ public static class SystemIntegration
                      ?? throw new InvalidOperationException("Can't find my own exe path");
 
         Run("schtasks",
-            $"/Create /F /TN \"{TaskName}\" /TR \"\\\"{exe}\\\"\" " +
+            $"/Create /F /TN \"{TaskName}\" /TR \"\\\"{exe}\\\" --minimized\" " +
             "/SC ONLOGON /DELAY 0000:30 /RL HIGHEST");
         log?.Invoke($"Drawbridge will start automatically ~30s after login " +
                     $"(running: {exe}).");
