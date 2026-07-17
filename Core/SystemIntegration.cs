@@ -66,7 +66,9 @@ public static class SystemIntegration
 
     /// <summary>
     /// Registers a scheduled task that starts Drawbridge (elevated, no UAC
-    /// prompt) whenever a user logs in.
+    /// prompt) 30 seconds after a user logs in. The delay lets the network
+    /// stack and other services settle first, so Drawbridge doesn't race
+    /// them for port 53 at boot.
     /// </summary>
     public static void EnableRunAtLogin(Action<string>? log = null)
     {
@@ -74,8 +76,10 @@ public static class SystemIntegration
                      ?? throw new InvalidOperationException("Can't find my own exe path");
 
         Run("schtasks",
-            $"/Create /F /TN \"{TaskName}\" /TR \"\\\"{exe}\\\"\" /SC ONLOGON /RL HIGHEST");
-        log?.Invoke("Drawbridge will start automatically at login.");
+            $"/Create /F /TN \"{TaskName}\" /TR \"\\\"{exe}\\\"\" " +
+            "/SC ONLOGON /DELAY 0000:30 /RL HIGHEST");
+        log?.Invoke($"Drawbridge will start automatically ~30s after login " +
+                    $"(running: {exe}).");
     }
 
     public static void DisableRunAtLogin(Action<string>? log = null)

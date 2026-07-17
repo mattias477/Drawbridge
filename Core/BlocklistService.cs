@@ -7,17 +7,40 @@ using System.Text.Json;
 
 namespace Drawbridge.Core;
 
+public enum FilterMode
+{
+    /// <summary>Allow everything except blocked domains (default).</summary>
+    Blocklist,
+
+    /// <summary>Block everything except allowed domains.</summary>
+    Whitelist,
+}
+
 /// <summary>
-/// Manages blocking sources: remote Adblock-format lists (cached locally,
-/// updated via conditional requests), the parent's custom block rules, and
-/// an allowlist of exception domains that override the blocklists.
+/// Manages filtering rules in two modes. Blocklist mode: remote lists +
+/// custom block rules decide what's blocked, with the allowed list as
+/// exceptions. Whitelist mode: ONLY the allowed list (plus a few system
+/// essentials) resolves; everything else is blocked.
 /// Rule precedence is by specificity: walking from the exact hostname up
-/// through its parent domains, the first allow/block match wins.
+/// through its parent domains, the first matching rule wins.
 /// </summary>
 public class BlocklistService
 {
     public const string DefaultUrl =
         "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt";
+
+    // Kept resolvable in whitelist mode so Windows itself doesn't break:
+    // connectivity checks, Windows Update, clock sync.
+    private static readonly HashSet<string> SystemEssentials = new(StringComparer.Ordinal)
+    {
+        "msftconnecttest.com",
+        "msftncsi.com",
+        "windowsupdate.com",
+        "update.microsoft.com",
+        "windows.com",
+        "microsoft.com",
+        "time.windows.com",
+    };
 
     private static readonly string SettingsDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -32,6 +55,7 @@ public class BlocklistService
         public List<string> Urls { get; set; } = new();
         public List<string> CustomDomains { get; set; } = new();
         public List<string> AllowedDomains { get; set; } = new();
+        public string Mode { get; set; } = nameof(FilterMode.Blocklist);
     }
 
     /// <summary>Remote blocklist source URLs (persisted).</summary>
@@ -40,9 +64,12 @@ public class BlocklistService
     /// <summary>Hand-typed blocked domains (persisted).</summary>
     public List<string> CustomDomains { get; private set; } = new();
 
-    /// <summary>Hand-typed exception domains that are always allowed,
-    /// overriding the blocklists (persisted).</summary>
+    /// <summary>Allowed domains (persisted). Exceptions in blocklist mode;
+    /// THE whitelist in whitelist mode.</summary>
     public List<string> AllowedDomains { get; private set; } = new();
+
+    /// <summary>Current filtering mode (persisted).</summary>
+    public FilterMode Mode { get; private set; } = FilterMode.Blocklist;
 
     private Dictionary<string, CacheMeta> _meta = new();
 
@@ -58,6 +85,20 @@ public class BlocklistService
 
     public event Action<string>? Log;
 
+    // ---------- mode ----------
+
+    public void SetMode(FilterMode mode)
+    {
+        if (Mode == mode) return;
+
+        Mode = mode;
+        SaveSettings();
+        Log?.Invoke(mode == FilterMode.Whitelist
+            ? $"WHITELIST MODE ON — only {AllowedDomains.Count} allowed domain(s) " +
+              "(plus system essentials) will resolve"
+            : "Blocklist mode on — allowing everything except blocked domains");
+    }
+
     // ---------- settings ----------
 
     public void LoadSettings()
@@ -68,7 +109,6 @@ public class BlocklistService
             {
                 string json = File.ReadAllText(SettingsPath);
 
-                // Current format: { Urls, CustomDomains, AllowedDomains }
                 try
                 {
                     var model = JsonSerializer.Deserialize<SettingsModel>(json);
@@ -77,6 +117,8 @@ public class BlocklistService
                         Urls = model.Urls;
                         CustomDomains = model.CustomDomains;
                         AllowedDomains = model.AllowedDomains;
+                        Mode = Enum.TryParse(model.Mode, out FilterMode m)
+                             ? m : FilterMode.Blocklist;
                         return;
                     }
                 }
@@ -112,6 +154,7 @@ public class BlocklistService
                     Urls = Urls,
                     CustomDomains = CustomDomains,
                     AllowedDomains = AllowedDomains,
+                    Mode = Mode.ToString(),
                 },
                 new JsonSerializerOptions { WriteIndented = true }));
         }
@@ -164,10 +207,10 @@ public class BlocklistService
         Log?.Invoke($"Block rule removed: {domain}");
     }
 
-    // ---------- exception rules (allow) ----------
+    // ---------- allowed domains ----------
 
-    /// <summary>Adds an always-allow exception. Returns false if invalid or
-    /// already present. Subdomains of the exception are allowed too.</summary>
+    /// <summary>Adds an allowed domain. Returns false if invalid or already
+    /// present. Subdomains are allowed too.</summary>
     public bool AddAllowedDomain(string input)
     {
         string? domain = NormalizeDomain(input);
@@ -177,7 +220,7 @@ public class BlocklistService
         AllowedDomains.Add(domain);
         SaveSettings();
         RebuildFromCache();
-        Log?.Invoke($"Allow exception added: {domain}");
+        Log?.Invoke($"Allowed domain added: {domain}");
         return true;
     }
 
@@ -186,7 +229,7 @@ public class BlocklistService
         AllowedDomains.Remove(domain);
         SaveSettings();
         RebuildFromCache();
-        Log?.Invoke($"Allow exception removed: {domain}");
+        Log?.Invoke($"Allowed domain removed: {domain}");
     }
 
     /// <summary>Cleans user input into a bare lowercase hostname,
@@ -243,7 +286,7 @@ public class BlocklistService
 
         Log?.Invoke(listsLoaded > 0 || CustomDomains.Count > 0
             ? $"Loaded {freshBlocked.Count:N0} domains ({listsLoaded} list(s), " +
-              $"{CustomDomains.Count} block rule(s), {AllowedDomains.Count} allow exception(s))"
+              $"{CustomDomains.Count} block rule(s), {AllowedDomains.Count} allowed domain(s))"
             : "No cached lists yet — will download");
     }
 
@@ -373,12 +416,29 @@ public class BlocklistService
     }
 
     /// <summary>
-    /// Walks from the exact hostname up through parent domains. At each
-    /// level, an allow exception wins before a block entry — so a specific
-    /// allow can punch a hole through a broader block.
+    /// The verdict. Both modes walk from the exact hostname up through its
+    /// parent domains, most specific first.
+    /// Blocklist mode: allowed → no; blocked → yes; no match → no.
+    /// Whitelist mode: allowed or system-essential → no; no match → YES.
     /// </summary>
     public bool IsBlocked(string domain)
     {
+        if (Mode == FilterMode.Whitelist)
+        {
+            string w = domain;
+            while (true)
+            {
+                if (_allowed.Contains(w) || SystemEssentials.Contains(w))
+                    return false;
+
+                int wDot = w.IndexOf('.');
+                if (wDot < 0)
+                    return true; // whitelist mode: unlisted = blocked
+
+                w = w[(wDot + 1)..];
+            }
+        }
+
         string d = domain;
         while (true)
         {
@@ -390,7 +450,7 @@ public class BlocklistService
 
             int dot = d.IndexOf('.');
             if (dot < 0)
-                return false;
+                return false; // blocklist mode: unlisted = allowed
 
             d = d[(dot + 1)..];
         }
