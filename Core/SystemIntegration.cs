@@ -15,7 +15,7 @@ public static class SystemIntegration
 
     // ---------- system DNS ----------
 
-    /// <summary>Sets every active network adapter to use 127.0.0.1 / ::1.</summary>
+    /// <summary>Sets every real, active network adapter to 127.0.0.1 / ::1.</summary>
     public static void PointDnsAtDrawbridge(Action<string>? log = null)
     {
         foreach (NetworkInterface nic in ActiveAdapters())
@@ -56,11 +56,22 @@ public static class SystemIntegration
         return false;
     }
 
+    /// <summary>
+    /// Only real, active Ethernet / Wi-Fi adapters. Filters out loopback,
+    /// tunnels, Wi-Fi Direct virtual adapters ("Local Area Connection* N"),
+    /// and WFP filter-driver bindings ("...-WFP ... Filter-0000") — none of
+    /// which should ever have DNS configured on them.
+    /// </summary>
     private static IEnumerable<NetworkInterface> ActiveAdapters() =>
         NetworkInterface.GetAllNetworkInterfaces().Where(n =>
             n.OperationalStatus == OperationalStatus.Up &&
-            n.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
-            n.NetworkInterfaceType != NetworkInterfaceType.Tunnel);
+            (n.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
+             n.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet ||
+             n.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) &&
+            !n.Name.Contains('*') &&
+            !n.Name.Contains("Filter", StringComparison.OrdinalIgnoreCase) &&
+            !n.Name.EndsWith("-0000", StringComparison.Ordinal) &&
+            !n.Description.Contains("Wi-Fi Direct", StringComparison.OrdinalIgnoreCase));
 
     // ---------- run at login ----------
 

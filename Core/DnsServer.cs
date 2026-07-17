@@ -4,9 +4,11 @@ using System.Net.Sockets;
 namespace Drawbridge.Core;
 
 /// <summary>
-/// The engine room, performance edition: UDP + TCP listeners on both
-/// loopbacks, dual upstreams with short-timeout retry, quiet logging.
-/// Raises a Blocked event per blocked lookup for logging/monitoring.
+/// The engine room, hardened edition. UDP + TCP listeners on both
+/// loopbacks, dual upstreams with short-timeout retry, quiet logging —
+/// and immunity to the Windows UDP quirk where a routine ICMP
+/// "port unreachable" surfaces as a ConnectionReset exception and, if
+/// unhandled, kills the listen loop while the app still looks healthy.
 /// </summary>
 public class DnsServer
 {
@@ -20,11 +22,17 @@ public class DnsServer
     private const int TcpTimeoutMs = 5000;
     private const int RelayLogEvery = 250;
 
+    // Windows-only socket option: stop reporting ICMP "port unreachable"
+    // as errors on this UDP socket. Without this, one stray ICMP can throw
+    // ConnectionReset out of ReceiveAsync.  (Winsock SIO_UDP_CONNRESET)
+    private const int SIO_UDP_CONNRESET = unchecked((int)0x9800000C);
+
     private readonly BlocklistService _blocklist;
     private readonly List<UdpClient> _udpListeners = new();
     private readonly List<TcpListener> _tcpListeners = new();
     private CancellationTokenSource? _cts;
     private long _relayedCount;
+    private long _icmpResetCount;
 
     public event Action<string>? Log;
 
@@ -46,10 +54,15 @@ public class DnsServer
 
         _cts = new CancellationTokenSource();
 
-        _udpListeners.Add(new UdpClient(new IPEndPoint(IPAddress.Loopback, 53)));
+        var udp4 = new UdpClient(new IPEndPoint(IPAddress.Loopback, 53));
+        SuppressIcmpResets(udp4);
+        _udpListeners.Add(udp4);
+
         try
         {
-            _udpListeners.Add(new UdpClient(new IPEndPoint(IPAddress.IPv6Loopback, 53)));
+            var udp6 = new UdpClient(new IPEndPoint(IPAddress.IPv6Loopback, 53));
+            SuppressIcmpResets(udp6);
+            _udpListeners.Add(udp6);
         }
         catch (Exception ex)
         {
@@ -67,6 +80,21 @@ public class DnsServer
 
         Log?.Invoke($"Listening on 127.0.0.1:53 and [::1]:53 " +
                     $"(UDP x{_udpListeners.Count}, TCP x{_tcpListeners.Count})");
+    }
+
+    /// <summary>Applies SIO_UDP_CONNRESET so ICMP unreachables can't poison
+    /// the socket. Best-effort: unsupported platforms just skip it.</summary>
+    private static void SuppressIcmpResets(UdpClient udp)
+    {
+        try
+        {
+            udp.Client.IOControl((IOControlCode)SIO_UDP_CONNRESET,
+                                 new byte[] { 0 }, null);
+        }
+        catch
+        {
+            // Non-Windows or older stack: the in-loop catch still covers us
+        }
     }
 
     private void TryStartTcp(IPAddress address)
@@ -99,19 +127,34 @@ public class DnsServer
 
     private async Task UdpLoopAsync(UdpClient listener, CancellationToken token)
     {
-        try
+        // The loop must be unkillable: per-receive errors are handled
+        // INSIDE the while and skipped, never allowed to end the loop.
+        while (!token.IsCancellationRequested)
         {
-            while (!token.IsCancellationRequested)
+            UdpReceiveResult request;
+            try
             {
-                UdpReceiveResult request = await listener.ReceiveAsync(token);
-                _ = HandleUdpQueryAsync(listener, request);
+                request = await listener.ReceiveAsync(token);
             }
-        }
-        catch (OperationCanceledException) { }
-        catch (ObjectDisposedException) { }
-        catch (Exception ex)
-        {
-            Log?.Invoke($"UDP listener error: {ex.Message}");
+            catch (OperationCanceledException) { return; } // normal shutdown
+            catch (ObjectDisposedException) { return; } // normal shutdown
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset)
+            {
+                // ICMP port-unreachable leaked through — harmless, keep serving.
+                if (Interlocked.Increment(ref _icmpResetCount) == 1)
+                    Log?.Invoke("Note: ignored a UDP ICMP reset (harmless); " +
+                                "the listener keeps running.");
+                continue;
+            }
+            catch (Exception ex)
+            {
+                // Anything else unexpected: log it, breathe, keep serving.
+                Log?.Invoke($"UDP receive error (recovered): {ex.Message}");
+                try { await Task.Delay(100, token); } catch { return; }
+                continue;
+            }
+
+            _ = HandleUdpQueryAsync(listener, request);
         }
     }
 
@@ -158,6 +201,7 @@ public class DnsServer
             try
             {
                 using var socket = new UdpClient();
+                SuppressIcmpResets(socket);
                 await socket.SendAsync(query, query.Length, upstream);
 
                 Task<UdpReceiveResult> receive = socket.ReceiveAsync();
@@ -176,19 +220,24 @@ public class DnsServer
 
     private async Task TcpLoopAsync(TcpListener listener, CancellationToken token)
     {
-        try
+        // Same unkillable structure as the UDP loop.
+        while (!token.IsCancellationRequested)
         {
-            while (!token.IsCancellationRequested)
+            TcpClient client;
+            try
             {
-                TcpClient client = await listener.AcceptTcpClientAsync(token);
-                _ = HandleTcpClientAsync(client);
+                client = await listener.AcceptTcpClientAsync(token);
             }
-        }
-        catch (OperationCanceledException) { }
-        catch (ObjectDisposedException) { }
-        catch (Exception ex)
-        {
-            Log?.Invoke($"TCP listener error: {ex.Message}");
+            catch (OperationCanceledException) { return; }
+            catch (ObjectDisposedException) { return; }
+            catch (Exception ex)
+            {
+                Log?.Invoke($"TCP accept error (recovered): {ex.Message}");
+                try { await Task.Delay(100, token); } catch { return; }
+                continue;
+            }
+
+            _ = HandleTcpClientAsync(client);
         }
     }
 
