@@ -14,7 +14,7 @@ public partial class MainWindow : Window
     private readonly DnsServer _server;
     private readonly WebMonitorService _webMonitor;
 
-    private bool _initializing = true; // suppress checkbox events during setup
+    private bool _initializing = true; // suppress control events during setup
     private bool _locked;
     private int _failedAttempts;
     private DateTime _lastChartRedraw = DateTime.MinValue;
@@ -49,6 +49,12 @@ public partial class MainWindow : Window
         SystemDnsCheck.IsChecked = SystemIntegration.IsDnsPointedAtDrawbridge();
         RunAtLoginCheck.IsChecked = SystemIntegration.IsRunAtLoginEnabled();
         WebMonitorCheck.IsChecked = _webMonitor.WasEnabled;
+
+        if (_blocklist.Mode == FilterMode.Whitelist)
+            WhitelistModeRadio.IsChecked = true;
+        else
+            BlocklistModeRadio.IsChecked = true;
+
         _initializing = false;
 
         UpdatePinUi();
@@ -68,7 +74,10 @@ public partial class MainWindow : Window
 
             UpdateBlockStats();
             RedrawChart();
-            StartBridge();
+
+            // At boot, other services can briefly hold port 53 or the
+            // network stack may not be ready — retry instead of giving up.
+            await StartBridgeWithRetryAsync();
 
             if (_webMonitor.WasEnabled && _pin.HasPin)
                 StartWebMonitor();
@@ -76,6 +85,140 @@ public partial class MainWindow : Window
             await CheckForUpdatesAsync();
         };
     }
+
+    // ---------- start / stop ----------
+
+    /// <summary>Startup path: up to 6 attempts, 5s apart, no popups.</summary>
+    private async Task StartBridgeWithRetryAsync()
+    {
+        for (int attempt = 1; attempt <= 6 && !_server.IsRunning; attempt++)
+        {
+            try
+            {
+                _server.Start();
+                SetStatus(true);
+                if (attempt > 1)
+                    AppendLog($"Bridge started on attempt {attempt}.");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Start attempt {attempt}/6 failed: {ex.Message}" +
+                          (attempt < 6 ? " — retrying in 5s" : ""));
+                if (attempt < 6)
+                    await Task.Delay(5000);
+            }
+        }
+
+        if (!_server.IsRunning)
+        {
+            SetStatus(false);
+            AppendLog("Could not start after 6 attempts. Find the conflict with: " +
+                      "netstat -abno | findstr :53   (admin Command Prompt)");
+        }
+    }
+
+    /// <summary>Manual start (toggle button): one attempt, with a popup on failure.</summary>
+    private void StartBridge()
+    {
+        if (_server.IsRunning) return;
+
+        try
+        {
+            _server.Start();
+            SetStatus(true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Failed to start: {ex.Message}");
+            MessageBox.Show(
+                $"Couldn't start the DNS server:\n\n{ex.Message}\n\n" +
+                "Port 53 may already be in use. Find the conflict with:\n" +
+                "netstat -abno | findstr :53   (admin Command Prompt)",
+                "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void StopBridge()
+    {
+        if (!_server.IsRunning) return;
+
+        _server.Stop();
+        SetStatus(false);
+    }
+
+    private void SetStatus(bool up)
+    {
+        Brush color = up ? Brushes.MediumSeaGreen : Brushes.IndianRed;
+        StatusLight.Fill = color;
+        SideStatusLight.Fill = color;
+        StatusText.Text = up ? $"Bridge is up — filtering DNS{ModeSuffix()}"
+                             : "Bridge is down (not filtering)";
+        ToggleButton.Content = up ? "Lower the Bridge (Stop)"
+                                  : "Raise the Bridge (Start)";
+    }
+
+    private void ToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_server.IsRunning) StopBridge();
+        else StartBridge();
+    }
+
+    // ---------- filtering mode ----------
+
+    private void FilterMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing) return;
+
+        bool wantWhitelist = WhitelistModeRadio.IsChecked == true;
+        FilterMode target = wantWhitelist ? FilterMode.Whitelist : FilterMode.Blocklist;
+
+        if (target == _blocklist.Mode) return;
+
+        if (wantWhitelist)
+        {
+            int allowedCount = _blocklist.AllowedDomains.Count;
+
+            MessageBoxResult confirm = MessageBox.Show(
+                "Whitelist mode blocks the ENTIRE internet except your " +
+                $"'Allowed domains' list — currently {allowedCount} domain(s) — " +
+                "plus a few Windows system essentials.\n\n" +
+                "Most websites need several domains to work (a video site also " +
+                "needs its image and video servers). Expect to check the Logs " +
+                "tab and add domains until your approved sites work fully.\n\n" +
+                (allowedCount == 0
+                    ? "⚠ Your allowed list is EMPTY — virtually nothing will load.\n\n"
+                    : "") +
+                "Switch to whitelist mode?",
+                "Drawbridge — Whitelist mode",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                _initializing = true;
+                BlocklistModeRadio.IsChecked = true;
+                _initializing = false;
+                return;
+            }
+        }
+
+        _blocklist.SetMode(target);
+        RefreshModeUi();
+    }
+
+    private void RefreshModeUi()
+    {
+        bool whitelist = _blocklist.Mode == FilterMode.Whitelist;
+        DomainsLoadedLabel.Text = whitelist
+            ? "allowed domains (whitelist mode)"
+            : "domains on the blocklist";
+        DomainsLoadedText.Text = whitelist
+            ? $"{_blocklist.AllowedDomains.Count:N0}"
+            : $"{_blocklist.BlockedDomainCount:N0}";
+        SetStatus(_server.IsRunning);
+    }
+
+    private string ModeSuffix()
+        => _blocklist.Mode == FilterMode.Whitelist ? " (whitelist mode)" : "";
 
     // ---------- prepare for uninstall ----------
 
@@ -391,52 +534,6 @@ public partial class MainWindow : Window
         AppendLog("PIN removed.");
     }
 
-    // ---------- start / stop ----------
-
-    private void StartBridge()
-    {
-        if (_server.IsRunning) return;
-
-        try
-        {
-            _server.Start();
-            SetStatus(true);
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Failed to start: {ex.Message}");
-            MessageBox.Show(
-                $"Couldn't start the DNS server:\n\n{ex.Message}\n\n" +
-                "Port 53 may already be in use.",
-                "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private void StopBridge()
-    {
-        if (!_server.IsRunning) return;
-
-        _server.Stop();
-        SetStatus(false);
-    }
-
-    private void SetStatus(bool up)
-    {
-        Brush color = up ? Brushes.MediumSeaGreen : Brushes.IndianRed;
-        StatusLight.Fill = color;
-        SideStatusLight.Fill = color;
-        StatusText.Text = up ? "Bridge is up — filtering DNS"
-                             : "Bridge is down (not filtering)";
-        ToggleButton.Content = up ? "Lower the Bridge (Stop)"
-                                  : "Raise the Bridge (Start)";
-    }
-
-    private void ToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_server.IsRunning) StopBridge();
-        else StartBridge();
-    }
-
     // ---------- system protection ----------
 
     private void SystemDnsCheck_Changed(object sender, RoutedEventArgs e)
@@ -560,7 +657,7 @@ public partial class MainWindow : Window
         UpdateCountLabel();
     }
 
-    // ---------- allow exceptions ----------
+    // ---------- allowed domains ----------
 
     private void AddAllowedButton_Click(object sender, RoutedEventArgs e)
         => AddAllowedDomain();
@@ -582,6 +679,7 @@ public partial class MainWindow : Window
 
         NewAllowedBox.Clear();
         RefreshAllowedDomainsList();
+        UpdateCountLabel();
     }
 
     private void RemoveAllowedButton_Click(object sender, RoutedEventArgs e)
@@ -590,6 +688,7 @@ public partial class MainWindow : Window
 
         _blocklist.RemoveAllowedDomain(domain);
         RefreshAllowedDomainsList();
+        UpdateCountLabel();
     }
 
     // ---------- UI helpers ----------
@@ -597,7 +696,7 @@ public partial class MainWindow : Window
     private void UpdateCountLabel()
     {
         BlockedCountText.Text = $"{_blocklist.BlockedDomainCount:N0} domains loaded";
-        DomainsLoadedText.Text = $"{_blocklist.BlockedDomainCount:N0}";
+        RefreshModeUi();
     }
 
     private void RefreshUrlListBox()

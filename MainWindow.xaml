@@ -98,6 +98,11 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
+        <Style x:Key="DarkRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#D5DCE8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
         <Style x:Key="DarkInput" TargetType="TextBox">
             <Setter Property="Background" Value="#141922"/>
             <Setter Property="Foreground" Value="White"/>
@@ -128,7 +133,8 @@
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
                         <StackPanel Orientation="Horizontal" Margin="16,18,0,20">
-                            <TextBlock Text="🏰" FontSize="22" FontFamily="Segoe UI Symbol" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock Text="🏰" FontSize="22" FontFamily="Segoe UI Symbol"
+                                       Foreground="White" VerticalAlignment="Center"/>
                             <TextBlock Text="Drawbridge" FontSize="18" FontWeight="Bold"
                                        Foreground="White" Margin="8,0,8,0"
                                        VerticalAlignment="Center"/>
@@ -138,15 +144,15 @@
 
                         <RadioButton Style="{StaticResource NavItem}" Tag="Dashboard"
                                      Content="🏠  Dashboard" IsChecked="True"
-                                     Checked="Nav_Checked"/>
+                                     Checked="Nav_Checked" GroupName="Nav"/>
                         <RadioButton Style="{StaticResource NavItem}" Tag="Blocklists"
-                                     Content="📋  Blocklists" Checked="Nav_Checked"/>
+                                     Content="📋  Blocklists" Checked="Nav_Checked" GroupName="Nav"/>
                         <RadioButton Style="{StaticResource NavItem}" Tag="Settings"
-                                     Content="⚙️  Settings" Checked="Nav_Checked"/>
+                                     Content="⚙️  Settings" Checked="Nav_Checked" GroupName="Nav"/>
                         <RadioButton Style="{StaticResource NavItem}" Tag="Security"
-                                     Content="🔒  Security" Checked="Nav_Checked"/>
+                                     Content="🔒  Security" Checked="Nav_Checked" GroupName="Nav"/>
                         <RadioButton Style="{StaticResource NavItem}" Tag="Logs"
-                                     Content="📜  Logs" Checked="Nav_Checked"/>
+                                     Content="📜  Logs" Checked="Nav_Checked" GroupName="Nav"/>
                     </StackPanel>
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="16,0,16,14"
@@ -155,7 +161,7 @@
                                 Style="{StaticResource SecondaryButton}"
                                 Visibility="Collapsed" Margin="0,0,0,10"
                                 Click="LockNowButton_Click"/>
-                        <TextBlock Text="Drawbridge v0.9" Style="{StaticResource Hint}"
+                        <TextBlock Text="Drawbridge v1.0" Style="{StaticResource Hint}"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                     <Grid/>
@@ -199,7 +205,8 @@
                                 <StackPanel>
                                     <TextBlock x:Name="DomainsLoadedText" Text="0" FontSize="28"
                                                FontWeight="Bold" Foreground="#3B82F6"/>
-                                    <TextBlock Text="domains on the blocklist"
+                                    <TextBlock x:Name="DomainsLoadedLabel"
+                                               Text="domains on the blocklist"
                                                Style="{StaticResource Hint}"/>
                                 </StackPanel>
                             </Border>
@@ -242,8 +249,53 @@
 
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
+                                    <TextBlock Text="Filtering mode" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="White" Margin="0,0,0,10"/>
+
+                                    <RadioButton x:Name="BlocklistModeRadio" GroupName="FilterMode"
+                                                 Style="{StaticResource DarkRadio}"
+                                                 Content="Blocklist mode — allow everything except blocked domains"
+                                                 Checked="FilterMode_Changed"/>
+                                    <RadioButton x:Name="WhitelistModeRadio" GroupName="FilterMode"
+                                                 Style="{StaticResource DarkRadio}"
+                                                 Content="Whitelist mode — block everything except allowed domains"
+                                                 Checked="FilterMode_Changed"/>
+
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="In whitelist mode, ONLY the 'Allowed domains' below (plus Windows system essentials) will work. Everything else — every site, app, and service — is blocked. Best for young children with a short list of approved sites."/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Allowed domains" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="White" Margin="0,0,0,8"/>
+
+                                    <ListBox x:Name="AllowedDomainsList" Height="70" Background="#141922"
+                                             Foreground="#9FE8A5" BorderThickness="0" FontSize="12"
+                                             Padding="4"/>
+
+                                    <TextBlock Text="Blocklist mode: exceptions that override blocks. Whitelist mode: the only sites that work. Subdomains included."
+                                               Style="{StaticResource FieldLabel}" Margin="0,10,0,3"/>
+                                    <DockPanel>
+                                        <Button x:Name="RemoveAllowedButton" Content="Remove selected"
+                                                Style="{StaticResource SecondaryButton}"
+                                                DockPanel.Dock="Right" Margin="8,0,0,0"
+                                                Click="RemoveAllowedButton_Click"/>
+                                        <Button x:Name="AddAllowedButton" Content="Allow domain"
+                                                Style="{StaticResource SuccessButton}"
+                                                DockPanel.Dock="Right" Margin="8,0,0,0"
+                                                Click="AddAllowedButton_Click"/>
+                                        <TextBox x:Name="NewAllowedBox" Style="{StaticResource DarkInput}"
+                                                 KeyDown="NewAllowedBox_KeyDown"/>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
                                     <DockPanel Margin="0,0,0,8">
-                                        <TextBlock Text="List sources" FontSize="15" FontWeight="SemiBold"
+                                        <TextBlock Text="List sources (blocklist mode)" FontSize="15" FontWeight="SemiBold"
                                                    Foreground="White" DockPanel.Dock="Left"/>
                                         <TextBlock x:Name="BlockedCountText" Text="0 domains loaded"
                                                    Foreground="#AAB3C5" HorizontalAlignment="Right"/>
@@ -275,7 +327,7 @@
 
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Custom block rules" FontSize="15" FontWeight="SemiBold"
+                                    <TextBlock Text="Custom block rules (blocklist mode)" FontSize="15" FontWeight="SemiBold"
                                                Foreground="White" Margin="0,0,0,8"/>
 
                                     <ListBox x:Name="CustomDomainsList" Height="70" Background="#141922"
@@ -295,32 +347,6 @@
                                                 Click="AddDomainButton_Click"/>
                                         <TextBox x:Name="NewDomainBox" Style="{StaticResource DarkInput}"
                                                  KeyDown="NewDomainBox_KeyDown"/>
-                                    </DockPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource Card}">
-                                <StackPanel>
-                                    <TextBlock Text="Always allow (exceptions)" FontSize="15" FontWeight="SemiBold"
-                                               Foreground="White" Margin="0,0,0,8"/>
-
-                                    <ListBox x:Name="AllowedDomainsList" Height="70" Background="#141922"
-                                             Foreground="#9FE8A5" BorderThickness="0" FontSize="12"
-                                             Padding="4"/>
-
-                                    <TextBlock Text="Allow a domain even if a blocklist blocks it (subdomains included)"
-                                               Style="{StaticResource FieldLabel}" Margin="0,10,0,3"/>
-                                    <DockPanel>
-                                        <Button x:Name="RemoveAllowedButton" Content="Remove selected"
-                                                Style="{StaticResource SecondaryButton}"
-                                                DockPanel.Dock="Right" Margin="8,0,0,0"
-                                                Click="RemoveAllowedButton_Click"/>
-                                        <Button x:Name="AddAllowedButton" Content="Allow domain"
-                                                Style="{StaticResource SuccessButton}"
-                                                DockPanel.Dock="Right" Margin="8,0,0,0"
-                                                Click="AddAllowedButton_Click"/>
-                                        <TextBox x:Name="NewAllowedBox" Style="{StaticResource DarkInput}"
-                                                 KeyDown="NewAllowedBox_KeyDown"/>
                                     </DockPanel>
                                 </StackPanel>
                             </Border>
