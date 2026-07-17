@@ -4,24 +4,21 @@ using System.Net.Sockets;
 namespace Drawbridge.Core;
 
 /// <summary>
-/// The engine room, performance edition. Listens for DNS on UDP *and* TCP
-/// (browsers retry big, truncated answers over TCP — without this, sites
-/// that use large HTTPS records, like YouTube, crawl). Failed lookups
-/// retry against a second upstream with a short timeout, and logging is
-/// kept quiet so heavy browsing never bottlenecks on the UI.
+/// The engine room, performance edition: UDP + TCP listeners on both
+/// loopbacks, dual upstreams with short-timeout retry, quiet logging.
+/// Raises a Blocked event per blocked lookup for logging/monitoring.
 /// </summary>
 public class DnsServer
 {
-    // Primary and fallback upstream resolvers
     private static readonly IPEndPoint[] Upstreams =
     {
         new(IPAddress.Parse("8.8.8.8"), 53),   // Google
         new(IPAddress.Parse("1.1.1.1"), 53),   // Cloudflare
     };
 
-    private const int UdpTimeoutMs = 1500;   // per upstream attempt
+    private const int UdpTimeoutMs = 1500;
     private const int TcpTimeoutMs = 5000;
-    private const int RelayLogEvery = 250;   // summary line frequency
+    private const int RelayLogEvery = 250;
 
     private readonly BlocklistService _blocklist;
     private readonly List<UdpClient> _udpListeners = new();
@@ -30,6 +27,9 @@ public class DnsServer
     private long _relayedCount;
 
     public event Action<string>? Log;
+
+    /// <summary>Raised with the domain each time a lookup is blocked.</summary>
+    public event Action<string>? Blocked;
 
     public bool IsRunning => _cts is { IsCancellationRequested: false };
 
@@ -46,7 +46,6 @@ public class DnsServer
 
         _cts = new CancellationTokenSource();
 
-        // --- UDP listeners (the normal path) ---
         _udpListeners.Add(new UdpClient(new IPEndPoint(IPAddress.Loopback, 53)));
         try
         {
@@ -58,7 +57,6 @@ public class DnsServer
                         "IPv6 lookups will stall — tell me if you see this!");
         }
 
-        // --- TCP listeners (big/truncated responses retry here) ---
         TryStartTcp(IPAddress.Loopback);
         TryStartTcp(IPAddress.IPv6Loopback);
 
@@ -129,6 +127,7 @@ public class DnsServer
                 byte[] refusal = BuildNxDomainResponse(request.Buffer);
                 await listener.SendAsync(refusal, refusal.Length, request.RemoteEndPoint);
                 Log?.Invoke($"BLOCKED: {domain}");
+                Blocked?.Invoke(domain);
                 return;
             }
 
@@ -137,8 +136,6 @@ public class DnsServer
             {
                 await listener.SendAsync(response, response.Length, request.RemoteEndPoint);
 
-                // Quiet success logging: a summary line, not one per lookup.
-                // (Per-query UI logging was a real bottleneck under load.)
                 long n = Interlocked.Increment(ref _relayedCount);
                 if (n % RelayLogEvery == 0)
                     Log?.Invoke($"Relayed {n:N0} lookups so far");
@@ -154,9 +151,6 @@ public class DnsServer
         }
     }
 
-    /// <summary>Sends the query to each upstream in turn with a short
-    /// timeout, returning the first response — packet loss to one server
-    /// costs 1.5s, not a dead lookup.</summary>
     private static async Task<byte[]?> ResolveUdpAsync(byte[] query)
     {
         foreach (IPEndPoint upstream in Upstreams)
@@ -200,7 +194,6 @@ public class DnsServer
 
     private async Task HandleTcpClientAsync(TcpClient client)
     {
-        // DNS-over-TCP frames every message with a 2-byte big-endian length
         try
         {
             using (client)
@@ -218,6 +211,7 @@ public class DnsServer
                 {
                     await WriteTcpMessageAsync(stream, BuildNxDomainResponse(query));
                     Log?.Invoke($"BLOCKED (tcp): {domain}");
+                    Blocked?.Invoke(domain);
                     return;
                 }
 
@@ -277,7 +271,7 @@ public class DnsServer
         while (read < buffer.Length)
         {
             int n = await stream.ReadAsync(buffer.AsMemory(read));
-            if (n == 0) return false; // connection closed early
+            if (n == 0) return false;
             read += n;
         }
         return true;
@@ -294,7 +288,6 @@ public class DnsServer
 
     // ---------- shared ----------
 
-    /// <summary>NXDOMAIN by flipping two header bits in the query.</summary>
     private static byte[] BuildNxDomainResponse(byte[] query)
     {
         byte[] response = (byte[])query.Clone();

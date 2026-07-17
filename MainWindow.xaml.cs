@@ -10,27 +10,45 @@ public partial class MainWindow : Window
 {
     private readonly BlocklistService _blocklist = new();
     private readonly PinService _pin = new();
+    private readonly BlockLogService _blockLog = new();
     private readonly DnsServer _server;
+    private readonly WebMonitorService _webMonitor;
 
     private bool _initializing = true; // suppress checkbox events during setup
     private bool _locked;
     private int _failedAttempts;
-    private int _sessionBlocked;
+    private DateTime _lastChartRedraw = DateTime.MinValue;
 
     public MainWindow()
     {
         InitializeComponent();
 
         _server = new DnsServer(_blocklist);
+        _webMonitor = new WebMonitorService(
+            _pin, _blockLog,
+            bridgeIsUp: () => _server.IsRunning,
+            domainCount: () => _blocklist.BlockedDomainCount);
 
         _server.Log += line => Dispatcher.InvokeAsync(() => AppendLog(line));
         _blocklist.Log += line => Dispatcher.InvokeAsync(() => AppendLog(line));
+        _webMonitor.Log += line => Dispatcher.InvokeAsync(() => AppendLog(line));
+
+        _server.Blocked += domain =>
+        {
+            _blockLog.Record(domain);
+            Dispatcher.InvokeAsync(OnBlockRecorded);
+        };
 
         _blocklist.LoadSettings();
+        _blocklist.LoadMeta();
+        _blockLog.Load();
         RefreshUrlListBox();
+        RefreshCustomDomainsList();
+        RefreshAllowedDomainsList();
 
         SystemDnsCheck.IsChecked = SystemIntegration.IsDnsPointedAtDrawbridge();
         RunAtLoginCheck.IsChecked = SystemIntegration.IsRunAtLoginEnabled();
+        WebMonitorCheck.IsChecked = _webMonitor.WasEnabled;
         _initializing = false;
 
         UpdatePinUi();
@@ -38,16 +56,187 @@ public partial class MainWindow : Window
         if (_pin.HasPin)
             LockUi();
 
-        // Launch sequence: cached lists load instantly, the bridge goes up
-        // right away, then the network update check runs in the background.
         Loaded += async (_, _) =>
         {
             _blocklist.RebuildFromCache();
             UpdateCountLabel();
+
+            foreach ((DateTime time, string domain) in _blockLog.Recent(100).Reverse())
+                LogList.Items.Add($"[{time:MMM d HH:mm:ss}] BLOCKED: {domain}");
+            if (LogList.Items.Count > 0)
+                AppendLog($"— loaded {LogList.Items.Count} blocked lookups from previous sessions —");
+
+            UpdateBlockStats();
+            RedrawChart();
             StartBridge();
+
+            if (_webMonitor.WasEnabled && _pin.HasPin)
+                StartWebMonitor();
 
             await CheckForUpdatesAsync();
         };
+    }
+
+    // ---------- prepare for uninstall ----------
+
+    private void CleanupButton_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBoxResult confirm = MessageBox.Show(
+            "This will:\n\n" +
+            "  • lower the bridge (stop filtering)\n" +
+            "  • restore Windows DNS to automatic\n" +
+            "  • remove the start-at-login task\n" +
+            "  • remove the web monitor firewall rule\n\n" +
+            "The computer will browse normally without Drawbridge, making it " +
+            "safe to uninstall or upgrade. Your lists, rules, PIN, and logs " +
+            "are kept.\n\nContinue?",
+            "Drawbridge — undo all system changes",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        _initializing = true; // keep checkbox events from re-running the work
+        try
+        {
+            StopBridge();
+            SystemIntegration.RestoreAutomaticDns(AppendLog);
+            SystemIntegration.DisableRunAtLogin(AppendLog);
+
+            _webMonitor.Stop();
+            _webMonitor.RemoveFirewallRule();
+            _webMonitor.PersistEnabled(false);
+
+            SystemDnsCheck.IsChecked = false;
+            RunAtLoginCheck.IsChecked = false;
+            WebMonitorCheck.IsChecked = false;
+            WebUrlText.Text = "";
+
+            AppendLog("Cleanup complete — this computer is back to normal DNS.");
+            MessageBox.Show(
+                "Done. All system changes are undone — Drawbridge can now be " +
+                "closed and uninstalled safely.\n\nTo protect this computer " +
+                "again later, just re-check the boxes in Settings.",
+                "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Cleanup problem: {ex.Message}");
+            MessageBox.Show($"Something didn't clean up fully:\n\n{ex.Message}",
+                            "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _initializing = false;
+        }
+    }
+
+    // ---------- dashboard stats & chart ----------
+
+    private void OnBlockRecorded()
+    {
+        UpdateBlockStats();
+
+        if ((DateTime.UtcNow - _lastChartRedraw).TotalSeconds >= 1)
+            RedrawChart();
+    }
+
+    private void UpdateBlockStats()
+    {
+        TodayBlockedText.Text = _blockLog.Today.ToString("N0");
+        AllTimeBlockedText.Text = _blockLog.TotalRecorded.ToString("N0");
+    }
+
+    private void RedrawChart()
+    {
+        _lastChartRedraw = DateTime.UtcNow;
+
+        ChartHost.Children.Clear();
+        ChartHost.ColumnDefinitions.Clear();
+
+        var days = _blockLog.LastDays(14);
+        int max = Math.Max(1, days.Max(d => d.Count));
+
+        var barBrush = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+        var zeroBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x42, 0x52));
+
+        for (int i = 0; i < days.Count; i++)
+        {
+            ChartHost.ColumnDefinitions.Add(new ColumnDefinition());
+
+            (DateTime day, int count) = days[i];
+
+            var cell = new Grid();
+            cell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            cell.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var bar = new Border
+            {
+                Height = count == 0 ? 3 : Math.Max(6, 105.0 * count / max),
+                Background = count == 0 ? zeroBrush : barBrush,
+                CornerRadius = new CornerRadius(3, 3, 0, 0),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(5, 0, 5, 0),
+                ToolTip = $"{day:MMM d}: {count:N0} blocked",
+            };
+            Grid.SetRow(bar, 0);
+
+            var label = new TextBlock
+            {
+                Text = day.ToString("dd"),
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA6)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            Grid.SetRow(label, 1);
+
+            cell.Children.Add(bar);
+            cell.Children.Add(label);
+            Grid.SetColumn(cell, i);
+            ChartHost.Children.Add(cell);
+        }
+    }
+
+    // ---------- web monitor ----------
+
+    private void WebMonitorCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing) return;
+
+        if (WebMonitorCheck.IsChecked == true)
+        {
+            if (!_pin.HasPin)
+            {
+                MessageBox.Show("Set a PIN on the Security tab first — the web " +
+                                "monitor uses it to keep the logs private.",
+                                "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Information);
+                WebMonitorCheck.IsChecked = false;
+                return;
+            }
+            StartWebMonitor();
+            _webMonitor.PersistEnabled(true);
+        }
+        else
+        {
+            _webMonitor.Stop();
+            _webMonitor.PersistEnabled(false);
+            WebUrlText.Text = "";
+        }
+    }
+
+    private void StartWebMonitor()
+    {
+        try
+        {
+            _webMonitor.Start();
+            WebUrlText.Text = "Open from another computer:  " +
+                              string.Join("   or   ", _webMonitor.Urls());
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Web monitor failed to start: {ex.Message}");
+            WebMonitorCheck.IsChecked = false;
+        }
     }
 
     // ---------- tab navigation ----------
@@ -184,6 +373,14 @@ public partial class MainWindow : Window
             MessageBox.Show("Enter the current PIN to remove the lock.", "Drawbridge",
                             MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
+        }
+
+        if (_webMonitor.IsRunning)
+        {
+            _webMonitor.Stop();
+            _webMonitor.PersistEnabled(false);
+            WebMonitorCheck.IsChecked = false;
+            AppendLog("Web monitor disabled (no PIN).");
         }
 
         _pin.RemovePin();
@@ -329,6 +526,74 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------- custom block rules ----------
+
+    private void AddDomainButton_Click(object sender, RoutedEventArgs e)
+        => AddCustomDomain();
+
+    private void NewDomainBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) AddCustomDomain();
+    }
+
+    private void AddCustomDomain()
+    {
+        if (!_blocklist.AddCustomDomain(NewDomainBox.Text))
+        {
+            MessageBox.Show("Please enter a valid domain, e.g. example.com " +
+                            "(or it may already be in the list).",
+                            "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        NewDomainBox.Clear();
+        RefreshCustomDomainsList();
+        UpdateCountLabel();
+    }
+
+    private void RemoveDomainButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (CustomDomainsList.SelectedItem is not string domain) return;
+
+        _blocklist.RemoveCustomDomain(domain);
+        RefreshCustomDomainsList();
+        UpdateCountLabel();
+    }
+
+    // ---------- allow exceptions ----------
+
+    private void AddAllowedButton_Click(object sender, RoutedEventArgs e)
+        => AddAllowedDomain();
+
+    private void NewAllowedBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) AddAllowedDomain();
+    }
+
+    private void AddAllowedDomain()
+    {
+        if (!_blocklist.AddAllowedDomain(NewAllowedBox.Text))
+        {
+            MessageBox.Show("Please enter a valid domain, e.g. example.com " +
+                            "(or it may already be in the list).",
+                            "Drawbridge", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        NewAllowedBox.Clear();
+        RefreshAllowedDomainsList();
+    }
+
+    private void RemoveAllowedButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (AllowedDomainsList.SelectedItem is not string domain) return;
+
+        _blocklist.RemoveAllowedDomain(domain);
+        RefreshAllowedDomainsList();
+    }
+
+    // ---------- UI helpers ----------
+
     private void UpdateCountLabel()
     {
         BlockedCountText.Text = $"{_blocklist.BlockedDomainCount:N0} domains loaded";
@@ -342,16 +607,22 @@ public partial class MainWindow : Window
             BlocklistUrls.Items.Add(url);
     }
 
-    // ---------- logging ----------
+    private void RefreshCustomDomainsList()
+    {
+        CustomDomainsList.Items.Clear();
+        foreach (string domain in _blocklist.CustomDomains)
+            CustomDomainsList.Items.Add(domain);
+    }
+
+    private void RefreshAllowedDomainsList()
+    {
+        AllowedDomainsList.Items.Clear();
+        foreach (string domain in _blocklist.AllowedDomains)
+            AllowedDomainsList.Items.Add(domain);
+    }
 
     private void AppendLog(string line)
     {
-        if (line.StartsWith("BLOCKED:"))
-        {
-            _sessionBlocked++;
-            SessionBlockedText.Text = _sessionBlocked.ToString("N0");
-        }
-
         LogList.Items.Add($"[{DateTime.Now:HH:mm:ss}] {line}");
 
         if (LogList.Items.Count > 500)
@@ -362,6 +633,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _webMonitor.Stop();
         _server.Stop();
         base.OnClosed(e);
     }

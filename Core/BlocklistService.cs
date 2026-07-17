@@ -8,14 +8,11 @@ using System.Text.Json;
 namespace Drawbridge.Core;
 
 /// <summary>
-/// Manages remote blocklists in Adblock syntax (||domain.com^).
-///
-/// Robustness model:
-///  - Every downloaded list is cached in %AppData%\Drawbridge\cache, so
-///    the filter loads instantly at launch and works with no internet.
-///  - Update checks use conditional HTTP requests (ETag / Last-Modified):
-///    unchanged lists cost a ~300-byte "304 Not Modified" instead of a
-///    multi-megabyte re-download.
+/// Manages blocking sources: remote Adblock-format lists (cached locally,
+/// updated via conditional requests), the parent's custom block rules, and
+/// an allowlist of exception domains that override the blocklists.
+/// Rule precedence is by specificity: walking from the exact hostname up
+/// through its parent domains, the first allow/block match wins.
 /// </summary>
 public class BlocklistService
 {
@@ -30,33 +27,36 @@ public class BlocklistService
     private static readonly string CacheDir = Path.Combine(SettingsDir, "cache");
     private static readonly string MetaPath = Path.Combine(CacheDir, "meta.json");
 
-    /// <summary>The blocklist source URLs (persisted).</summary>
+    private class SettingsModel
+    {
+        public List<string> Urls { get; set; } = new();
+        public List<string> CustomDomains { get; set; } = new();
+        public List<string> AllowedDomains { get; set; } = new();
+    }
+
+    /// <summary>Remote blocklist source URLs (persisted).</summary>
     public List<string> Urls { get; private set; } = new();
 
-    // Per-URL HTTP caching info (ETag etc.), persisted next to the cache files
+    /// <summary>Hand-typed blocked domains (persisted).</summary>
+    public List<string> CustomDomains { get; private set; } = new();
+
+    /// <summary>Hand-typed exception domains that are always allowed,
+    /// overriding the blocklists (persisted).</summary>
+    public List<string> AllowedDomains { get; private set; } = new();
+
     private Dictionary<string, CacheMeta> _meta = new();
 
     private record CacheMeta(string? Etag, string? LastModified, DateTime FetchedUtc);
 
-    // Merged set of blocked domains; rebuilt fresh and swapped atomically
     private HashSet<string> _blocked = new();
+    private HashSet<string> _allowed = new();
 
     public int BlockedDomainCount => _blocked.Count;
 
+    /// <summary>The merged set of every blocked domain (lists + custom).</summary>
+    public IReadOnlyCollection<string> BlockedDomains => _blocked;
+
     public event Action<string>? Log;
-
-    // ---------- lifecycle ----------
-
-    /// <summary>
-    /// Launch sequence: load cached lists immediately (works offline),
-    /// then check the network for updates.
-    /// </summary>
-    public async Task InitializeAsync()
-    {
-        LoadMeta();
-        RebuildFromCache();
-        await CheckForUpdatesAsync();
-    }
 
     // ---------- settings ----------
 
@@ -66,11 +66,28 @@ public class BlocklistService
         {
             if (File.Exists(SettingsPath))
             {
-                var saved = JsonSerializer.Deserialize<List<string>>(
-                    File.ReadAllText(SettingsPath));
-                if (saved is { Count: > 0 })
+                string json = File.ReadAllText(SettingsPath);
+
+                // Current format: { Urls, CustomDomains, AllowedDomains }
+                try
                 {
-                    Urls = saved;
+                    var model = JsonSerializer.Deserialize<SettingsModel>(json);
+                    if (model is { Urls.Count: > 0 })
+                    {
+                        Urls = model.Urls;
+                        CustomDomains = model.CustomDomains;
+                        AllowedDomains = model.AllowedDomains;
+                        return;
+                    }
+                }
+                catch { /* fall through to legacy format */ }
+
+                // Legacy format (pre-custom-rules): plain [ "url", ... ]
+                var legacy = JsonSerializer.Deserialize<List<string>>(json);
+                if (legacy is { Count: > 0 })
+                {
+                    Urls = legacy;
+                    SaveSettings(); // upgrade the file to the new shape
                     return;
                 }
             }
@@ -89,9 +106,14 @@ public class BlocklistService
         try
         {
             Directory.CreateDirectory(SettingsDir);
-            File.WriteAllText(SettingsPath,
-                JsonSerializer.Serialize(Urls,
-                    new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(
+                new SettingsModel
+                {
+                    Urls = Urls,
+                    CustomDomains = CustomDomains,
+                    AllowedDomains = AllowedDomains,
+                },
+                new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
         {
@@ -103,7 +125,6 @@ public class BlocklistService
     {
         Urls.Add(url);
         SaveSettings();
-        // No cache yet — the next CheckForUpdatesAsync() downloads it in full
     }
 
     public void RemoveList(string url)
@@ -118,12 +139,83 @@ public class BlocklistService
         RebuildFromCache();
     }
 
+    // ---------- custom rules (block) ----------
+
+    /// <summary>Adds a hand-typed block rule. Returns false if invalid or
+    /// already present. Subdomains are blocked automatically.</summary>
+    public bool AddCustomDomain(string input)
+    {
+        string? domain = NormalizeDomain(input);
+        if (domain is null || CustomDomains.Contains(domain))
+            return false;
+
+        CustomDomains.Add(domain);
+        SaveSettings();
+        RebuildFromCache();
+        Log?.Invoke($"Block rule added: {domain}");
+        return true;
+    }
+
+    public void RemoveCustomDomain(string domain)
+    {
+        CustomDomains.Remove(domain);
+        SaveSettings();
+        RebuildFromCache();
+        Log?.Invoke($"Block rule removed: {domain}");
+    }
+
+    // ---------- exception rules (allow) ----------
+
+    /// <summary>Adds an always-allow exception. Returns false if invalid or
+    /// already present. Subdomains of the exception are allowed too.</summary>
+    public bool AddAllowedDomain(string input)
+    {
+        string? domain = NormalizeDomain(input);
+        if (domain is null || AllowedDomains.Contains(domain))
+            return false;
+
+        AllowedDomains.Add(domain);
+        SaveSettings();
+        RebuildFromCache();
+        Log?.Invoke($"Allow exception added: {domain}");
+        return true;
+    }
+
+    public void RemoveAllowedDomain(string domain)
+    {
+        AllowedDomains.Remove(domain);
+        SaveSettings();
+        RebuildFromCache();
+        Log?.Invoke($"Allow exception removed: {domain}");
+    }
+
+    /// <summary>Cleans user input into a bare lowercase hostname,
+    /// or null if it doesn't look like one.</summary>
+    private static string? NormalizeDomain(string input)
+    {
+        string domain = input.Trim().ToLowerInvariant()
+                             .TrimEnd('.')
+                             .Replace("https://", "").Replace("http://", "");
+
+        int slash = domain.IndexOf('/');
+        if (slash >= 0) domain = domain[..slash];
+
+        bool looksLikeDomain =
+            domain.Length >= 3 &&
+            domain.Contains('.') &&
+            !domain.Contains(' ') &&
+            Uri.CheckHostName(domain) == UriHostNameType.Dns;
+
+        return looksLikeDomain ? domain : null;
+    }
+
     // ---------- cache ----------
 
-    /// <summary>Rebuilds the blocked-domain set purely from cached files.</summary>
+    /// <summary>Rebuilds the blocked and allowed sets from cached lists
+    /// plus hand-typed rules.</summary>
     public void RebuildFromCache()
     {
-        var fresh = new HashSet<string>(StringComparer.Ordinal);
+        var freshBlocked = new HashSet<string>(StringComparer.Ordinal);
         int listsLoaded = 0;
 
         foreach (string url in Urls)
@@ -134,7 +226,7 @@ public class BlocklistService
             try
             {
                 foreach (string domain in ParseAdblock(File.ReadAllText(path)))
-                    fresh.Add(domain);
+                    freshBlocked.Add(domain);
                 listsLoaded++;
             }
             catch (Exception ex)
@@ -143,17 +235,22 @@ public class BlocklistService
             }
         }
 
-        _blocked = fresh; // atomic swap
-        Log?.Invoke(listsLoaded > 0
-            ? $"Loaded {fresh.Count:N0} domains from local cache ({listsLoaded} list(s))"
+        foreach (string domain in CustomDomains)
+            freshBlocked.Add(domain);
+
+        _blocked = freshBlocked; // atomic swaps
+        _allowed = new HashSet<string>(AllowedDomains, StringComparer.Ordinal);
+
+        Log?.Invoke(listsLoaded > 0 || CustomDomains.Count > 0
+            ? $"Loaded {freshBlocked.Count:N0} domains ({listsLoaded} list(s), " +
+              $"{CustomDomains.Count} block rule(s), {AllowedDomains.Count} allow exception(s))"
             : "No cached lists yet — will download");
     }
 
     /// <summary>
-    /// Asks each list's server "changed since last time?". Downloads only
-    /// what actually changed (or was never cached). Returns how many lists
-    /// were updated. Network failures keep the existing cache — the filter
-    /// never loses data because a check failed.
+    /// Asks each list's server "changed since last time?" using conditional
+    /// requests. Downloads only what changed. Network failures keep the
+    /// existing cache. Returns how many lists were updated.
     /// </summary>
     public async Task<int> CheckForUpdatesAsync()
     {
@@ -167,7 +264,6 @@ public class BlocklistService
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 bool hasCache = File.Exists(CachePathFor(url));
 
-                // Only ask conditionally if we actually still have the cache
                 if (hasCache && _meta.TryGetValue(url, out CacheMeta? meta))
                 {
                     if (!string.IsNullOrEmpty(meta.Etag))
@@ -214,7 +310,7 @@ public class BlocklistService
         return updated;
     }
 
-    private void LoadMeta()
+    public void LoadMeta()
     {
         try
         {
@@ -224,7 +320,7 @@ public class BlocklistService
         }
         catch
         {
-            _meta = new(); // corrupt meta just means full re-downloads
+            _meta = new();
         }
     }
 
@@ -242,7 +338,6 @@ public class BlocklistService
         }
     }
 
-    /// <summary>Each URL gets a stable cache filename derived from its hash.</summary>
     private static string CachePathFor(string url)
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(url));
@@ -278,14 +373,18 @@ public class BlocklistService
     }
 
     /// <summary>
-    /// True if the domain or ANY parent domain is on the list, so
-    /// "videos.badsite.com" is caught by an entry for "badsite.com".
+    /// Walks from the exact hostname up through parent domains. At each
+    /// level, an allow exception wins before a block entry — so a specific
+    /// allow can punch a hole through a broader block.
     /// </summary>
     public bool IsBlocked(string domain)
     {
         string d = domain;
         while (true)
         {
+            if (_allowed.Contains(d))
+                return false;
+
             if (_blocked.Contains(d))
                 return true;
 
