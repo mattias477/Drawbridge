@@ -4,7 +4,10 @@ namespace Drawbridge.Core;
 
 internal static class AtomicFile
 {
-    internal static void WriteAllText(string path, string contents)
+    internal static void WriteAllText(
+        string path,
+        string contents,
+        Action<string>? prepareTemporaryFile = null)
     {
         string? directory = Path.GetDirectoryName(path);
         if (string.IsNullOrEmpty(directory))
@@ -20,6 +23,7 @@ internal static class AtomicFile
         try
         {
             File.WriteAllText(temporaryPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            prepareTemporaryFile?.Invoke(temporaryPath);
             File.Move(temporaryPath, path, overwrite: true);
         }
         finally

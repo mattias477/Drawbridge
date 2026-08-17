@@ -87,6 +87,61 @@ public sealed class DrawbridgePaths
         }
     }
 
+    internal void ProtectSensitiveFile(string path)
+    {
+        if (!_secureAcl || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string fullPath = Path.GetFullPath(path);
+        string rootPrefix = Path.TrimEndingDirectorySeparator(RootDirectory) + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Sensitive files must remain inside the Drawbridge data directory.");
+        }
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "icacls.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+        };
+        process.StartInfo.ArgumentList.Add(fullPath);
+        process.StartInfo.ArgumentList.Add("/inheritance:r");
+        process.StartInfo.ArgumentList.Add("/grant:r");
+        process.StartInfo.ArgumentList.Add("*S-1-5-18:F");
+        process.StartInfo.ArgumentList.Add("/grant:r");
+        process.StartInfo.ArgumentList.Add("*S-1-5-32-544:F");
+        process.StartInfo.ArgumentList.Add("/Q");
+
+        if (!process.Start())
+        {
+            throw new InvalidOperationException("Could not start icacls to protect the PIN hash.");
+        }
+
+        Task<string> output = process.StandardOutput.ReadToEndAsync();
+        Task<string> error = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(15_000))
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw new TimeoutException("Timed out while protecting the PIN hash ACL.");
+        }
+
+        Task.WaitAll([output, error], TimeSpan.FromSeconds(2));
+        if (process.ExitCode != 0)
+        {
+            string detail = error.IsCompletedSuccessfully ? error.Result.Trim() : string.Empty;
+            throw new InvalidOperationException(
+                $"Could not protect the PIN hash ACL (exit {process.ExitCode}): {detail}");
+        }
+    }
+
     private void ApplyRestrictedAcl(Action<string>? log)
     {
         try

@@ -289,13 +289,12 @@ internal static class Program
         byte[] salt = Enumerable.Range(1, 16).Select(value => (byte)value).ToArray();
         byte[] hash = Rfc2898DeriveBytes.Pbkdf2(
             "2468", salt, 100_000, HashAlgorithmName.SHA256, 32);
-        File.WriteAllText(
-            fixture.Paths.PinFile,
-            JsonSerializer.Serialize(new Dictionary<string, string>
-            {
-                ["salt"] = Convert.ToBase64String(salt),
-                ["HASH"] = Convert.ToBase64String(hash),
-            }));
+        string legacyRecord = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["salt"] = Convert.ToBase64String(salt),
+            ["HASH"] = Convert.ToBase64String(hash),
+        });
+        File.WriteAllText(fixture.Paths.PinFile, legacyRecord);
 
         var pins = new PinService(fixture.Paths);
         Assert.True(pins.HasPin);
@@ -306,6 +305,8 @@ internal static class Program
         Assert.True(pins.Verify("1357"));
         Assert.True(pins.RemovePin());
         Assert.False(pins.HasPin);
+        pins.ImportLegacyRecord(legacyRecord);
+        Assert.True(pins.Verify("2468"));
         return Task.CompletedTask;
     }
 

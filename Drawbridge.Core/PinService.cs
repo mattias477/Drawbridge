@@ -26,6 +26,10 @@ public sealed class PinService
     {
         _paths = paths ?? new DrawbridgePaths();
         _paths.EnsureCreated();
+        if (File.Exists(_paths.PinFile))
+        {
+            _paths.ProtectSensitiveFile(_paths.PinFile);
+        }
     }
 
     /// <summary>Gets whether a PIN hash file currently exists.</summary>
@@ -52,7 +56,7 @@ public sealed class PinService
             lock (_sync)
             {
                 _paths.EnsureCreated();
-                AtomicFile.WriteAllText(_paths.PinFile, JsonSerializer.Serialize(record, JsonOptions));
+                WriteProtectedRecord(record);
             }
         }
         finally
@@ -135,6 +139,27 @@ public sealed class PinService
         }
     }
 
+    /// <summary>
+    /// Imports a legacy PBKDF2 record without exposing the plaintext PIN and applies the
+    /// production SYSTEM/Administrators-only file ACL before publishing it.
+    /// </summary>
+    /// <param name="json">A serialized legacy or current PIN record.</param>
+    public void ImportLegacyRecord(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        PinRecord? record = JsonSerializer.Deserialize<PinRecord>(json, JsonOptions);
+        if (!IsValidRecord(record))
+        {
+            throw new InvalidDataException("The legacy PIN record is invalid.");
+        }
+
+        lock (_sync)
+        {
+            _paths.EnsureCreated();
+            WriteProtectedRecord(record!);
+        }
+    }
+
     private static byte[] Derive(string pin, byte[] salt, int iterations) =>
         Rfc2898DeriveBytes.Pbkdf2(
             pin,
@@ -142,6 +167,36 @@ public sealed class PinService
             iterations,
             HashAlgorithmName.SHA256,
             HashLength);
+
+    private void WriteProtectedRecord(PinRecord record) =>
+        AtomicFile.WriteAllText(
+            _paths.PinFile,
+            JsonSerializer.Serialize(record, JsonOptions),
+            temporaryPath => _paths.ProtectSensitiveFile(temporaryPath));
+
+    private static bool IsValidRecord(PinRecord? record)
+    {
+        if (record is null || record.Iterations is < 10_000 or > 1_000_000 ||
+            (!string.IsNullOrEmpty(record.Algorithm) &&
+             !string.Equals(record.Algorithm, "PBKDF2-SHA256", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        try
+        {
+            byte[] salt = Convert.FromBase64String(record.Salt ?? string.Empty);
+            byte[] hash = Convert.FromBase64String(record.Hash ?? string.Empty);
+            bool valid = salt.Length is >= 8 and <= 64 && hash.Length == HashLength;
+            CryptographicOperations.ZeroMemory(salt);
+            CryptographicOperations.ZeroMemory(hash);
+            return valid;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static void ValidatePin(string pin)
     {
