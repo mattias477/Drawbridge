@@ -1,0 +1,12 @@
+[Bb]in/
+[Oo]bj/
+.vs/
+artifacts/
+*.user
+*.suo
+*.nupkg
+TestResults/
+
+# Preserved v1 prototype (independent nested repository).
+/Drawbridge/
+/Drawbridge.slnx

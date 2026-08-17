@@ -1,0 +1,27 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.Core", "Drawbridge.Core\Drawbridge.Core.csproj", "{E76E2D81-D0DA-4E6A-986B-BB94FFB9BE87}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.Core.Tests", "Drawbridge.Core.Tests\Drawbridge.Core.Tests.csproj", "{C60C57E9-426E-46AA-9CC6-D4D4B310980D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E76E2D81-D0DA-4E6A-986B-BB94FFB9BE87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E76E2D81-D0DA-4E6A-986B-BB94FFB9BE87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E76E2D81-D0DA-4E6A-986B-BB94FFB9BE87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E76E2D81-D0DA-4E6A-986B-BB94FFB9BE87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
