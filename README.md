@@ -31,6 +31,13 @@ dotnet build .\Drawbridge.sln -c Release
 dotnet exec --roll-forward Major .\Drawbridge.Core.Tests\bin\Release\net8.0\Drawbridge.Core.Tests.dll
 ```
 
+The checked-in Windows icon is generated deterministically from the Drawbridge
+brand geometry. Regenerate all `.ico` sizes after changing the mark with:
+
+```powershell
+.\tools\Generate-BrandAssets.ps1
+```
+
 For a non-destructive console smoke test, use an isolated data directory and
 unprivileged ports. This does not modify adapter DNS:
 

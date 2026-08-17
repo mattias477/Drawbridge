@@ -76,8 +76,9 @@ result in the release ticket.
 ## UI and modes
 
 - [ ] Run the app as the standard account. It must not request elevation.
-- [ ] Verify single-instance behavior, castle tray icon color/tooltip, sidebar
-      navigation, 2-second status/log refresh, and the 14-day chart.
+- [ ] Verify the branded window, taskbar, Start-menu, and desktop shortcut icons;
+      the castle tray icon's green/red status badge and tooltip; sidebar
+      navigation; 2-second status/log refresh; and the 14-day chart.
 - [ ] Close the window; it hides to the tray and filtering continues. Exit from
       the tray; filtering still continues and a balloon explains that fact.
 - [ ] Stop the service and verify the clear **Service not running** state. Use

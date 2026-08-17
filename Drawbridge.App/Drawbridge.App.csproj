@@ -18,6 +18,7 @@
     <AssemblyTitle>Drawbridge Control Panel</AssemblyTitle>
     <Description>Drawbridge parental-control DNS filter control panel.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Drawbridge.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Confirm"
-        Width="470"
+        Width="490"
         SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStyle="None"
@@ -10,46 +10,61 @@
         Background="Transparent"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
-    <Border Background="{StaticResource WindowBrush}"
-            BorderBrush="{StaticResource BorderBrush}"
+    <Border Background="{StaticResource CardBrush}"
+            BorderBrush="#3A4B64"
             BorderThickness="1"
-            CornerRadius="13"
-            Padding="25">
+            CornerRadius="16"
+            Padding="0"
+            ClipToBounds="True">
         <Border.Effect>
             <DropShadowEffect BlurRadius="28" ShadowDepth="5" Opacity="0.48" Color="Black" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="4" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Border x:Name="AccentBar" Background="{StaticResource DangerBrush}" />
+            <Grid Grid.Row="1" Margin="26,24,26,25">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="42" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Width="34" Height="34" CornerRadius="17" Background="#3AF05B68">
-                    <TextBlock Text="!" Foreground="{StaticResource DangerBrush}" FontSize="20" FontWeight="Bold"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-                <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="ConfirmationIconSurface" Width="40" Height="40" CornerRadius="12" Background="#3DF05B68"
+                            BorderBrush="#66F05B68" BorderThickness="1">
+                        <TextBlock x:Name="ConfirmationIconText" Text="!" Foreground="#FF9DA6" FontSize="20" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="ConfirmationEyebrow" Text="CONFIRM ACTION" Foreground="#B9808A" FontSize="9" FontWeight="SemiBold" />
+                        <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="MessageText" Grid.Row="1" Margin="0,19,0,0" Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="13" TextWrapping="Wrap" LineHeight="20" />
+
+                <StackPanel x:Name="PhrasePanel" Grid.Row="2" Margin="0,19,0,0">
+                    <TextBlock x:Name="PhraseHintText" Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBox x:Name="PhraseTextBox" TextChanged="PhraseTextBox_OnTextChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+                    <Button Content="Cancel" Style="{StaticResource SecondaryButton}" MinWidth="96"
+                            Margin="0,0,10,0" Click="Cancel_OnClick" />
+                    <Button x:Name="ConfirmButton" Content="Continue" Style="{StaticResource DangerButton}"
+                            MinWidth="112" Click="Confirm_OnClick" />
+                </StackPanel>
             </Grid>
-
-            <TextBlock x:Name="MessageText" Grid.Row="1" Margin="0,18,0,0" Foreground="{StaticResource MutedTextBrush}"
-                       FontSize="13" TextWrapping="Wrap" LineHeight="20" />
-
-            <StackPanel x:Name="PhrasePanel" Grid.Row="2" Margin="0,18,0,0">
-                <TextBlock x:Name="PhraseHintText" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,7" />
-                <TextBox x:Name="PhraseTextBox" TextChanged="PhraseTextBox_OnTextChanged" />
-            </StackPanel>
-
-            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,23,0,0">
-                <Button Content="Cancel" Style="{StaticResource SecondaryButton}" MinWidth="92" Margin="0,0,10,0" Click="Cancel_OnClick" />
-                <Button x:Name="ConfirmButton" Content="Continue" Style="{StaticResource DangerButton}" MinWidth="108" Click="Confirm_OnClick" />
-            </StackPanel>
         </Grid>
     </Border>
 </Window>

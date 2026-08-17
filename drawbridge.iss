@@ -25,6 +25,7 @@ OutputBaseFilename=Drawbridge-{#MyAppVersion}-win-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=Drawbridge.App\Assets\Drawbridge.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
@@ -35,8 +36,8 @@ Source: "artifacts\publish\service\*"; DestDir: "{app}"; Flags: ignoreversion re
 Source: "artifacts\publish\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
+Name: "{autodesktop}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked

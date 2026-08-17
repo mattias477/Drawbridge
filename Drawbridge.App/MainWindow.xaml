@@ -4,42 +4,139 @@
         xmlns:local="clr-namespace:Drawbridge.App"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Drawbridge"
-        Width="1120"
-        Height="760"
+        Width="1160"
+        Height="790"
         MinWidth="980"
-        MinHeight="660"
+        MinHeight="680"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
         Background="{StaticResource WindowBrush}"
         Foreground="{StaticResource TextBrush}">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="46" ResizeBorderThickness="7" CornerRadius="10" GlassFrameThickness="0" />
+        <shell:WindowChrome CaptionHeight="52" ResizeBorderThickness="7" CornerRadius="10" GlassFrameThickness="0" />
     </shell:WindowChrome.WindowChrome>
 
-    <Border BorderBrush="#354055" BorderThickness="1" Background="{StaticResource WindowBrush}">
+    <Window.Resources>
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="29" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="PageSubtitleStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,5,0,0" />
+        </Style>
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="SectionCaptionStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+        <Style x:Key="ModeChoiceStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ChoiceSurface" Background="#192230" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="10" Padding="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="29" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,0,0">
+                                    <Ellipse x:Name="ChoiceRing" Stroke="#617089" StrokeThickness="1.5" />
+                                    <Ellipse x:Name="ChoiceDot" Width="8" Height="8" Fill="{StaticResource PrimaryBrush}" Visibility="Collapsed" />
+                                </Grid>
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChoiceSurface" Property="Background" Value="{StaticResource CardHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ChoiceSurface" Property="Background" Value="#1D304E" />
+                                <Setter TargetName="ChoiceSurface" Property="BorderBrush" Value="#719CFF" />
+                                <Setter TargetName="ChoiceRing" Property="Stroke" Value="#719CFF" />
+                                <Setter TargetName="ChoiceDot" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ChoiceSurface" Property="BorderBrush" Value="#AEC5FF" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ChoiceSurface" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RemoveItemButton" TargetType="Button" BasedOn="{StaticResource SmallButton}">
+            <Setter Property="Content" Value="×" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="MinWidth" Value="27" />
+            <Setter Property="MinHeight" Value="27" />
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ToolTip" Value="Remove" />
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="#2C3A4F" BorderThickness="1" Background="{StaticResource WindowBrush}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="46" />
+                <RowDefinition Height="52" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#191F2A" BorderBrush="#30394A" BorderThickness="0,0,0,1"
+            <Border Grid.Row="0" Background="#111925" BorderBrush="#263449" BorderThickness="0,0,0,1"
                     MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="232" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Margin="20,0" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource MutedTextBrush}"
-                               Text="DRAWBRIDGE CONTROL" />
-                    <TextBlock x:Name="ActionMessageText" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
-                               Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+                    <StackPanel Margin="17,0" VerticalAlignment="Center" Orientation="Horizontal">
+                        <local:BrandMark Width="23" Height="23" Margin="0,0,9,0" />
+                        <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" FontSize="11"
+                                   Foreground="{StaticResource MutedTextBrush}" Text="DRAWBRIDGE" />
+                    </StackPanel>
+                    <Border Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Background="#172131" CornerRadius="12" Padding="11,4">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=ActionMessageText}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock x:Name="ActionMessageText" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                    </Border>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Width="46" Height="45" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
-                                FontSize="18" Content="−" ToolTip="Minimize" Click="MinimizeButton_OnClick" />
-                        <Button Width="46" Height="45" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
+                        <Button Width="48" Height="51" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
+                                FontSize="17" Content="−" ToolTip="Minimize" Click="MinimizeButton_OnClick" />
+                        <Button Width="48" Height="51" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
                                 FontSize="15" Content="×" ToolTip="Close to tray" Click="CloseButton_OnClick" />
                     </StackPanel>
                 </Grid>
@@ -47,204 +144,417 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="232" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <Border Background="{StaticResource SidebarBrush}" BorderBrush="#30394A" BorderThickness="0,0,1,0">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="116" />
+                            <RowDefinition Height="130" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Grid Width="42" Height="37" Margin="0,0,0,7">
-                                <Rectangle Width="34" Height="21" Fill="#75A7FF" RadiusX="2" RadiusY="2" VerticalAlignment="Bottom" />
-                                <Rectangle Width="9" Height="15" Fill="#75A7FF" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,0,0,0" />
-                                <Rectangle Width="9" Height="15" Fill="#75A7FF" HorizontalAlignment="Center" VerticalAlignment="Top" />
-                                <Rectangle Width="9" Height="15" Fill="#75A7FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,4,0" />
-                                <Rectangle Width="7" Height="10" Fill="{StaticResource SidebarBrush}" VerticalAlignment="Bottom" />
-                            </Grid>
-                            <TextBlock Text="Drawbridge" FontSize="20" FontWeight="Bold" />
-                            <TextBlock Text="Guard the gateway" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" />
-                        </StackPanel>
+                        <Grid Margin="19,0,14,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <local:BrandMark Width="48" Height="48" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <TextBlock Text="Drawbridge" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="Guard the gateway" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Grid>
 
-                        <StackPanel Grid.Row="1" Margin="0,9,0,0">
+                        <StackPanel Grid.Row="1" Margin="0,7,0,0">
+                            <TextBlock Text="NAVIGATION" Foreground="#63748C" FontSize="10" FontWeight="SemiBold" Margin="27,0,0,8" />
                             <Button x:Name="DashboardNav" Style="{StaticResource NavButton}" Tag="Selected" CommandParameter="Dashboard"
                                     Click="NavigationButton_OnClick">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="▰" Width="29" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /><TextBlock Text="Dashboard" /></StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="17" Height="17" Margin="0,0,13,0">
+                                        <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Data="M1,1 H7 V7 H1 Z M10,1 H17 V7 H10 Z M1,10 H7 V17 H1 Z M10,10 H17 V17 H10 Z" />
+                                    </Viewbox>
+                                    <TextBlock Text="Dashboard" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
                             <Button x:Name="BlocklistsNav" Style="{StaticResource NavButton}" CommandParameter="Blocklists"
                                     Click="NavigationButton_OnClick">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="☷" Width="29" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /><TextBlock Text="Blocklists" /></StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="17" Height="17" Margin="0,0,13,0">
+                                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                              Data="M2,3 H16 M2,8.5 H16 M2,14 H12" />
+                                    </Viewbox>
+                                    <TextBlock Text="Blocklists" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
                             <Button x:Name="SettingsNav" Style="{StaticResource NavButton}" CommandParameter="Settings"
                                     Click="NavigationButton_OnClick">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" Width="29" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /><TextBlock Text="Settings" /></StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="17" Height="17" Margin="0,0,13,0">
+                                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                              Data="M2,4 H6 M10,4 H16 M2,9 H10 M14,9 H16 M2,14 H4 M8,14 H16 M8,2 V6 M12,7 V11 M6,12 V16" />
+                                    </Viewbox>
+                                    <TextBlock Text="Settings" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
                             <Button x:Name="SecurityNav" Style="{StaticResource NavButton}" CommandParameter="Security"
                                     Click="NavigationButton_OnClick">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="◆" Width="29" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /><TextBlock Text="Security" /></StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="17" Height="17" Margin="0,0,13,0">
+                                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Fill="Transparent"
+                                              StrokeThickness="1.6" StrokeLineJoin="Round"
+                                              Data="M9,1 L16,4 V9 C16,13 13,16 9,18 C5,16 2,13 2,9 V4 Z" />
+                                    </Viewbox>
+                                    <TextBlock Text="Security" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
                             <Button x:Name="LogsNav" Style="{StaticResource NavButton}" CommandParameter="Logs"
                                     Click="NavigationButton_OnClick">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="›_" Width="29" FontFamily="Consolas" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /><TextBlock Text="Logs" /></StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="17" Height="17" Margin="0,0,13,0">
+                                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Fill="Transparent"
+                                              StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                              Data="M1.5,2.5 H16.5 V15.5 H1.5 Z M4.5,6 L7,8.5 L4.5,11 M9,11.5 H13" />
+                                    </Viewbox>
+                                    <TextBlock Text="Logs" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
                         </StackPanel>
 
-                        <Border Grid.Row="2" Margin="17" Padding="12" Background="#202735" CornerRadius="8">
-                            <StackPanel>
-                                <TextBlock Text="Filtering runs in the Windows service." TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
-                                <TextBlock Text="Safe after logout and app exit." Margin="0,4,0,0" FontSize="11" Foreground="#75A7FF" />
-                            </StackPanel>
+                        <Border Grid.Row="2" Margin="15,12,15,17" Padding="14" Background="#141F2F"
+                                BorderBrush="#24364E" BorderThickness="1" CornerRadius="11">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28" Height="28" CornerRadius="14" Background="#1D3450" VerticalAlignment="Top">
+                                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock Text="Always-on service" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Text="Protection continues when this panel closes."
+                                               TextWrapping="Wrap" FontSize="10" LineHeight="15"
+                                               Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Border>
 
-                <Grid Grid.Column="1" Margin="25,20,25,24">
+                <Grid Grid.Column="1" Margin="29,24,28,27">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Border x:Name="OfflineBanner" Grid.Row="0" Visibility="Collapsed" Background="#37F05B68" BorderBrush="#80F05B68"
-                            BorderThickness="1" CornerRadius="9" Padding="13,9" Margin="0,0,0,13">
+                    <Border x:Name="OfflineBanner" Grid.Row="0" Visibility="Collapsed" Background="#2B1C24" BorderBrush="#784653"
+                            BorderThickness="1" CornerRadius="11" Padding="14,11" Margin="0,0,0,17">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="9" Height="9" Fill="{StaticResource DangerBrush}" Margin="0,0,10,0" />
+                                <Border Width="30" Height="30" Background="#44232D" CornerRadius="15" Margin="0,0,11,0">
+                                    <TextBlock Text="!" Foreground="#FF9DA6" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
                                 <StackPanel>
                                     <TextBlock Text="Service not running" FontWeight="SemiBold" />
-                                    <TextBlock Text="Filtering status and controls are unavailable." FontSize="11" Foreground="#E3A5AB" />
+                                    <TextBlock Text="Filtering status and controls are temporarily unavailable."
+                                               FontSize="11" Foreground="#D5A5AD" Margin="0,2,0,0" />
                                 </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="1" Content="Start service" Style="{StaticResource PrimaryButton}" Padding="13,7"
+                            <Button Grid.Column="1" Content="Start service" Style="{StaticResource PrimaryButton}" Padding="14,7"
                                     Click="StartServiceButton_OnClick" />
                         </Grid>
                     </Border>
 
-                    <Grid x:Name="PageHost" Grid.Row="2">
-                        <ScrollViewer x:Name="DashboardPage" VerticalScrollBarVisibility="Auto">
+                    <Grid x:Name="PageHost" Grid.Row="1">
+                        <ScrollViewer x:Name="DashboardPage" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,9,0">
                             <StackPanel>
-                                <Grid Margin="0,0,0,17">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid Margin="0,0,0,22">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Dashboard" FontSize="27" FontWeight="SemiBold" />
-                                        <TextBlock Text="Your gateway at a glance" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                        <TextBlock Text="Dashboard" Style="{StaticResource PageTitleStyle}" />
+                                        <TextBlock Text="A live view of your DNS protection." Style="{StaticResource PageSubtitleStyle}" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                        <TextBlock x:Name="VersionText" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
-                                        <TextBlock x:Name="UptimeText" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" />
-                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#151F2E" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="12,7" VerticalAlignment="Center">
+                                        <StackPanel>
+                                            <TextBlock x:Name="VersionText" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="10" />
+                                            <TextBlock x:Name="UptimeText" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
 
-                                <Border Style="{StaticResource CardStyle}" Padding="22" Margin="0,0,0,15">
+                                <Border Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,17" ClipToBounds="True">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#17263B" />
+                                            <GradientStop Offset="1" Color="#111B29" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <Grid Width="57" Height="57">
-                                            <Ellipse Fill="#18202C" Stroke="#465268" StrokeThickness="1" />
-                                            <Ellipse x:Name="StatusDot" Width="22" Height="22" Fill="{StaticResource DangerBrush}" />
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="5" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="#719CFF" CornerRadius="13,0,0,13" />
+                                        <Grid Grid.Column="1" Width="62" Height="62" Margin="21,22,0,22">
+                                            <Ellipse Fill="#142033" Stroke="#3A506C" StrokeThickness="1" />
+                                            <Ellipse Width="38" Height="38" Fill="#1A2A40" />
+                                            <Ellipse x:Name="StatusDot" Width="16" Height="16" Fill="{StaticResource DangerBrush}" />
                                         </Grid>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="17,0">
-                                            <TextBlock x:Name="BridgeStatusText" Text="Connecting…" FontSize="20" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="BridgeStatusDetailText" Text="Checking the filtering service" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="18,18">
+                                            <TextBlock Text="FILTERING ENGINE" Foreground="#86A8F8" FontSize="10" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="BridgeStatusText" Text="Connecting…" FontSize="21" FontWeight="SemiBold" Margin="0,5,0,0" />
+                                            <TextBlock x:Name="BridgeStatusDetailText" Text="Checking the filtering service"
+                                                       Foreground="{StaticResource MutedTextBrush}" FontSize="12"
+                                                       TextWrapping="Wrap" Margin="0,4,0,0" />
                                         </StackPanel>
-                                        <Button x:Name="BridgeButton" Grid.Column="2" Content="Raise the bridge" Style="{StaticResource PrimaryButton}" MinWidth="154"
-                                                Click="BridgeButton_OnClick" />
+                                        <Button x:Name="BridgeButton" Grid.Column="3" Content="Raise the bridge"
+                                                Style="{StaticResource PrimaryButton}" MinWidth="152" Margin="8,0,22,0"
+                                                VerticalAlignment="Center" Click="BridgeButton_OnClick" />
                                     </Grid>
                                 </Border>
 
-                                <UniformGrid Columns="3" Margin="0,0,0,15">
-                                    <Border Style="{StaticResource CardStyle}" Margin="0,0,8,0">
+                                <Grid Margin="0,0,0,17">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource CardStyle}" Padding="17">
                                         <StackPanel>
-                                            <TextBlock Text="PROTECTED DOMAINS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                            <TextBlock x:Name="DomainCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                            <TextBlock Text="Across remote and custom rules" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,4,0,0" />
+                                            <Grid>
+                                                <TextBlock Text="PROTECTED DOMAINS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                                <Border HorizontalAlignment="Right" Width="26" Height="26" CornerRadius="13" Background="#233654">
+                                                    <TextBlock Text="#" Foreground="#8FB0FF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock x:Name="DomainCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                            <TextBlock Text="Remote and custom rules" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource CardStyle}" Margin="4,0">
+                                    <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="17">
                                         <StackPanel>
-                                            <TextBlock Text="BLOCKED TODAY" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                            <TextBlock x:Name="TodayCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                            <TextBlock Text="Requests stopped since midnight" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,4,0,0" />
+                                            <Grid>
+                                                <TextBlock Text="BLOCKED TODAY" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                                <Border HorizontalAlignment="Right" Width="26" Height="26" CornerRadius="13" Background="#173D3A">
+                                                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock x:Name="TodayCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                            <TextBlock Text="Stopped since midnight" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource CardStyle}" Margin="8,0,0,0">
+                                    <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="17">
                                         <StackPanel>
-                                            <TextBlock Text="ALL-TIME BLOCKS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                            <TextBlock x:Name="AllTimeCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                            <TextBlock Text="Since Drawbridge was installed" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,4,0,0" />
+                                            <Grid>
+                                                <TextBlock Text="ALL-TIME BLOCKS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                                <Border HorizontalAlignment="Right" Width="26" Height="26" CornerRadius="13" Background="#3A2D43">
+                                                    <TextBlock Text="↗" Foreground="#D4A8EE" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock x:Name="AllTimeCountText" Text="—" FontSize="29" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                            <TextBlock Text="Since Drawbridge was installed" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Border>
-                                </UniformGrid>
+                                </Grid>
 
-                                <Border Style="{StaticResource CardStyle}" Padding="18,15,18,12">
+                                <Border Style="{StaticResource CardStyle}" Padding="20,18,20,13">
                                     <Grid>
-                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
                                         <Grid>
-                                            <TextBlock Text="Blocks over the last 14 days" FontSize="14" FontWeight="SemiBold" />
-                                            <TextBlock Text="Daily DNS requests" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                            <StackPanel>
+                                                <TextBlock Text="Blocking activity" Style="{StaticResource SectionTitleStyle}" />
+                                                <TextBlock Text="Last 14 days" Style="{StaticResource SectionCaptionStyle}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,0,0">
+                                                <Ellipse Width="7" Height="7" Fill="#719CFF" Margin="0,0,7,0" />
+                                                <TextBlock Text="Blocked DNS requests" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                            </StackPanel>
                                         </Grid>
-                                        <local:DailyBarChart x:Name="BlockChart" Grid.Row="1" Height="205" Margin="0,9,0,0" />
+                                        <local:DailyBarChart x:Name="BlockChart" Grid.Row="1" Height="210" Margin="0,8,0,0" />
                                     </Grid>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
 
-                        <ScrollViewer x:Name="BlocklistsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer x:Name="BlocklistsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,9,0">
                             <StackPanel>
-                                <Grid Margin="0,0,0,17">
+                                <Grid Margin="0,0,0,22">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Blocklists" FontSize="27" FontWeight="SemiBold" />
-                                        <TextBlock Text="Choose how domains cross the bridge" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                        <TextBlock Text="Blocklists" Style="{StaticResource PageTitleStyle}" />
+                                        <TextBlock Text="Fine-tune what crosses the bridge, from trusted exceptions to entire subscriptions."
+                                                   Style="{StaticResource PageSubtitleStyle}" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Update lists now" Style="{StaticResource SecondaryButton}"
+                                    <Button Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Content="Update lists now" Style="{StaticResource SecondaryButton}"
                                             Click="UpdateListsButton_OnClick" />
                                 </Grid>
 
-                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,15">
+                                <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,18">
+                                    <StackPanel>
+                                        <TextBlock Text="Filtering mode" Style="{StaticResource SectionTitleStyle}" />
+                                        <TextBlock Text="Choose the default policy. Your domain rules below are applied on top."
+                                                   Style="{StaticResource SectionCaptionStyle}" />
+                                        <Grid Margin="0,16,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <RadioButton x:Name="BlocklistModeRadio" GroupName="Mode" Tag="Blocklist"
+                                                         Style="{StaticResource ModeChoiceStyle}" Click="ModeRadio_OnClick">
+                                                <StackPanel>
+                                                    <TextBlock Text="Block known threats" FontSize="14" FontWeight="SemiBold" />
+                                                    <TextBlock Text="Allow normal traffic and stop domains found in your blocking rules."
+                                                               Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </RadioButton>
+                                            <RadioButton x:Name="WhitelistModeRadio" Grid.Column="2" GroupName="Mode" Tag="Whitelist"
+                                                         Style="{StaticResource ModeChoiceStyle}" Click="ModeRadio_OnClick">
+                                                <StackPanel>
+                                                    <TextBlock Text="Allow trusted domains only" FontSize="14" FontWeight="SemiBold" />
+                                                    <TextBlock Text="Stop everything except allowed rules and essential Windows services."
+                                                               Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </RadioButton>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,18">
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <Border Background="#1B2230" CornerRadius="9" Padding="15" Margin="0,0,7,0">
-                                            <RadioButton x:Name="BlocklistModeRadio" GroupName="Mode" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
-                                                         Content="Blocklist mode" Tag="Blocklist" Click="ModeRadio_OnClick" />
-                                            <Border.ToolTip>Allow all domains except those on a blocking rule.</Border.ToolTip>
-                                        </Border>
-                                        <Border Grid.Column="1" Background="#1B2230" CornerRadius="9" Padding="15" Margin="7,0,0,0">
-                                            <RadioButton x:Name="WhitelistModeRadio" GroupName="Mode" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
-                                                         Content="Whitelist mode" Tag="Whitelist" Click="ModeRadio_OnClick" />
-                                            <Border.ToolTip>Block every domain except allowed rules and Windows essentials.</Border.ToolTip>
-                                        </Border>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Remote subscriptions" Style="{StaticResource SectionTitleStyle}" />
+                                                <TextBlock Text="HTTPS blocklists in hosts or adblock format. Updates are downloaded and merged by the service."
+                                                           Style="{StaticResource SectionCaptionStyle}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Background="#1A2B45" CornerRadius="9" Padding="10,5" VerticalAlignment="Top">
+                                                <TextBlock Text="SOURCE URLS" Foreground="#86A8F8" FontSize="10" FontWeight="SemiBold" />
+                                            </Border>
+                                        </Grid>
+
+                                        <TextBlock Grid.Row="1" Text="ADD A SUBSCRIPTION" Style="{StaticResource FieldLabelStyle}" Margin="0,18,0,7" />
+                                        <Grid Grid.Row="2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ListUrlInput" ToolTip="https://example.com/blocklist.txt"
+                                                     AutomationProperties.Name="Blocklist subscription URL" />
+                                            <Button Grid.Column="1" Content="Add source" Style="{StaticResource SmallButton}"
+                                                    Margin="9,0,0,0" Click="AddListButton_OnClick" />
+                                        </Grid>
+                                        <ListBox x:Name="ListUrlsList" Grid.Row="3" Height="154" Margin="0,12,0,0">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
+                                                            <TextBlock Text="Remote blocklist" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Tag="{Binding}" Style="{StaticResource RemoveItemButton}"
+                                                                AutomationProperties.Name="Remove blocklist source"
+                                                                Margin="8,0,0,0" Click="DeleteListButton_OnClick" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
                                     </Grid>
                                 </Border>
 
                                 <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MinWidth="280" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" MinWidth="280" />
+                                    </Grid.ColumnDefinitions>
 
-                                    <Border Style="{StaticResource CardStyle}" Padding="15" Margin="0,0,7,0">
+                                    <Border Style="{StaticResource CardStyle}" Padding="20">
                                         <Grid>
-                                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <StackPanel>
-                                                <TextBlock Text="Allowed domains" FontSize="15" FontWeight="SemiBold" />
-                                                <TextBlock Text="Exceptions—or the whole whitelist" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" Margin="0,0,9,0" />
+                                                    <TextBlock Text="Allowed domains" Style="{StaticResource SectionTitleStyle}" />
+                                                </StackPanel>
+                                                <TextBlock Text="Exceptions in blocklist mode; your complete allow policy in whitelist mode."
+                                                           Style="{StaticResource SectionCaptionStyle}" />
                                             </StackPanel>
-                                            <Grid Grid.Row="1" Margin="0,12,0,10">
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                <TextBox x:Name="AllowRuleInput" ToolTip="example.com" />
-                                                <Button Grid.Column="1" Content="Add" Style="{StaticResource SmallButton}" Margin="7,0,0,0" Click="AddAllowRuleButton_OnClick" />
+                                            <TextBlock Grid.Row="1" Text="ADD A DOMAIN" Style="{StaticResource FieldLabelStyle}" Margin="0,18,0,7" />
+                                            <Grid Grid.Row="2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="AllowRuleInput" ToolTip="example.com"
+                                                         AutomationProperties.Name="Allowed domain" />
+                                                <Button Grid.Column="1" Content="Add" Style="{StaticResource SmallButton}"
+                                                        Margin="9,0,0,0" Click="AddAllowRuleButton_OnClick" />
                                             </Grid>
-                                            <ListBox x:Name="AllowRulesList" Grid.Row="2" MinHeight="260">
+                                            <ListBox x:Name="AllowRulesList" Grid.Row="3" Height="220" Margin="0,12,0,0">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
                                                             <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                            <Button Grid.Column="1" Content="×" Tag="{Binding}" Style="{StaticResource SmallButton}" Padding="7,3" Click="DeleteAllowRuleButton_OnClick" />
+                                                            <Button Grid.Column="1" Tag="{Binding}" Style="{StaticResource RemoveItemButton}"
+                                                                    AutomationProperties.Name="Remove allowed domain"
+                                                                    Margin="8,0,0,0" Click="DeleteAllowRuleButton_OnClick" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
@@ -252,49 +562,45 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="15" Margin="7,0">
+                                    <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="20">
                                         <Grid>
-                                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <StackPanel>
-                                                <TextBlock Text="Remote lists" FontSize="15" FontWeight="SemiBold" />
-                                                <TextBlock Text="Adblock-format source URLs" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{StaticResource DangerBrush}" Margin="0,0,9,0" />
+                                                    <TextBlock Text="Custom blocks" Style="{StaticResource SectionTitleStyle}" />
+                                                </StackPanel>
+                                                <TextBlock Text="Domains that are always denied, independent of remote list contents."
+                                                           Style="{StaticResource SectionCaptionStyle}" />
                                             </StackPanel>
-                                            <Grid Grid.Row="1" Margin="0,12,0,10">
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                <TextBox x:Name="ListUrlInput" ToolTip="https://…" />
-                                                <Button Grid.Column="1" Content="Add" Style="{StaticResource SmallButton}" Margin="7,0,0,0" Click="AddListButton_OnClick" />
+                                            <TextBlock Grid.Row="1" Text="ADD A DOMAIN" Style="{StaticResource FieldLabelStyle}" Margin="0,18,0,7" />
+                                            <Grid Grid.Row="2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="BlockRuleInput" ToolTip="example.com"
+                                                         AutomationProperties.Name="Blocked domain" />
+                                                <Button Grid.Column="1" Content="Add" Style="{StaticResource SmallButton}"
+                                                        Margin="9,0,0,0" Click="AddBlockRuleButton_OnClick" />
                                             </Grid>
-                                            <ListBox x:Name="ListUrlsList" Grid.Row="2" MinHeight="260">
+                                            <ListBox x:Name="BlockRulesList" Grid.Row="3" Height="220" Margin="0,12,0,0">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding}" />
-                                                            <Button Grid.Column="1" Content="×" Tag="{Binding}" Style="{StaticResource SmallButton}" Padding="7,3" Click="DeleteListButton_OnClick" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ListBox.ItemTemplate>
-                                            </ListBox>
-                                        </Grid>
-                                    </Border>
-
-                                    <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="15" Margin="7,0,0,0">
-                                        <Grid>
-                                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                            <StackPanel>
-                                                <TextBlock Text="Custom blocks" FontSize="15" FontWeight="SemiBold" />
-                                                <TextBlock Text="Domains that are always blocked" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" />
-                                            </StackPanel>
-                                            <Grid Grid.Row="1" Margin="0,12,0,10">
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                <TextBox x:Name="BlockRuleInput" ToolTip="example.com" />
-                                                <Button Grid.Column="1" Content="Add" Style="{StaticResource SmallButton}" Margin="7,0,0,0" Click="AddBlockRuleButton_OnClick" />
-                                            </Grid>
-                                            <ListBox x:Name="BlockRulesList" Grid.Row="2" MinHeight="260">
-                                                <ListBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
                                                             <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                            <Button Grid.Column="1" Content="×" Tag="{Binding}" Style="{StaticResource SmallButton}" Padding="7,3" Click="DeleteBlockRuleButton_OnClick" />
+                                                            <Button Grid.Column="1" Tag="{Binding}" Style="{StaticResource RemoveItemButton}"
+                                                                    AutomationProperties.Name="Remove blocked domain"
+                                                                    Margin="8,0,0,0" Click="DeleteBlockRuleButton_OnClick" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
@@ -305,140 +611,295 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                            <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-                                <TextBlock Text="Settings" FontSize="27" FontWeight="SemiBold" />
-                                <TextBlock Text="System integration and remote monitoring" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,18" />
+                        <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,9,0">
+                            <StackPanel MaxWidth="840" HorizontalAlignment="Left">
+                                <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" />
+                                <TextBlock Text="Connect Drawbridge to Windows and your local network."
+                                           Style="{StaticResource PageSubtitleStyle}" Margin="0,5,0,23" />
 
-                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,13">
+                                <TextBlock Text="SYSTEM INTEGRATION" Foreground="#71839C" FontSize="10" FontWeight="SemiBold" Margin="2,0,0,9" />
+                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,18" Padding="0">
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,25,0">
-                                            <TextBlock Text="Route system DNS through Drawbridge" FontSize="15" FontWeight="SemiBold" />
-                                            <TextBlock Text="Sets active physical adapters to 127.0.0.1 and ::1. The service performs this privileged change."
-                                                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
-                                        </StackPanel>
-                                        <CheckBox x:Name="RouteDnsToggle" Grid.Column="1" Style="{StaticResource ToggleStyle}" Click="RouteDnsToggle_OnClick" />
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="1" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid Margin="21,20">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="42" Height="42" CornerRadius="11" Background="#1B3150" VerticalAlignment="Top">
+                                                <TextBlock Text="DNS" Foreground="#8CB0FF" FontSize="10" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="14,0,25,0" VerticalAlignment="Center">
+                                                <TextBlock Text="Route system DNS through Drawbridge" FontSize="15" FontWeight="SemiBold" />
+                                                <TextBlock Text="Use 127.0.0.1 and ::1 on active physical adapters. The Windows service applies this privileged change."
+                                                           Style="{StaticResource SectionCaptionStyle}" LineHeight="18" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="RouteDnsToggle" Grid.Column="2" Style="{StaticResource ToggleStyle}"
+                                                      VerticalAlignment="Center" Click="RouteDnsToggle_OnClick" />
+                                        </Grid>
+                                        <Border Grid.Row="1" Height="1" Background="{StaticResource BorderBrush}" Margin="21,0" />
+                                        <Grid Grid.Row="2" Margin="21,20">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="42" Height="42" CornerRadius="11" Background="#193536" VerticalAlignment="Top">
+                                                <Viewbox Width="19" Height="19">
+                                                    <Path Stroke="{StaticResource SuccessBrush}" StrokeThickness="1.5" Fill="Transparent"
+                                                          Data="M1,8 C4,4 7,2 10,2 C13,2 16,4 19,8 M4,11 C6,8 8,7 10,7 C12,7 14,8 16,11 M8,14 C9,13 11,13 12,14 M10,17 L10,17.1" />
+                                                </Viewbox>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="14,0,25,0" VerticalAlignment="Center">
+                                                <TextBlock Text="LAN dashboard" FontSize="15" FontWeight="SemiBold" />
+                                                <TextBlock Text="Share a PIN-protected status page with devices on your local network."
+                                                           Style="{StaticResource SectionCaptionStyle}" LineHeight="18" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="WebMonitorToggle" Grid.Column="2" Style="{StaticResource ToggleStyle}"
+                                                      VerticalAlignment="Center" Click="WebMonitorToggle_OnClick" />
+                                        </Grid>
                                     </Grid>
                                 </Border>
 
-                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,13">
+                                <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,22">
                                     <Grid>
-                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                            <StackPanel Margin="0,0,25,0">
-                                                <TextBlock Text="LAN dashboard" FontSize="15" FontWeight="SemiBold" />
-                                                <TextBlock Text="Expose the PIN-protected status page to devices on your local network."
-                                                           Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
-                                            </StackPanel>
-                                            <CheckBox x:Name="WebMonitorToggle" Grid.Column="1" Style="{StaticResource ToggleStyle}" Click="WebMonitorToggle_OnClick" />
-                                        </Grid>
-                                        <Border Grid.Row="1" Background="#19202C" CornerRadius="7" Padding="12" Margin="0,14,0,0">
-                                            <TextBlock x:Name="MonitorUrlsText" Foreground="#75A7FF" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
-                                                       Text="Enable the LAN dashboard to see connection addresses." />
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Dashboard addresses" Style="{StaticResource SectionTitleStyle}" />
+                                            <TextBlock Text="Open one of these addresses from another device connected to this network."
+                                                       Style="{StaticResource SectionCaptionStyle}" />
+                                        </StackPanel>
+                                        <Border Grid.Row="1" Background="#0F1824" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="9" Padding="14" Margin="0,14,0,0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="4" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Background="#719CFF" CornerRadius="2" Margin="0,1,0,1" />
+                                                <TextBox x:Name="MonitorUrlsText" Grid.Column="1" IsReadOnly="True" AcceptsReturn="True"
+                                                         Foreground="#86A8F8" Background="Transparent" BorderThickness="0" Padding="0"
+                                                         FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="Wrap"
+                                                         MinHeight="0" Margin="12,0,0,0"
+                                                         Text="Enable the LAN dashboard to see connection addresses." />
+                                            </Grid>
                                         </Border>
                                     </Grid>
                                 </Border>
 
-                                <Border Background="#2B222B" BorderBrush="#78414B" BorderThickness="1" CornerRadius="12" Padding="18">
+                                <TextBlock Text="RECOVERY" Foreground="#8D6C72" FontSize="10" FontWeight="SemiBold" Margin="2,0,0,9" />
+                                <Border Background="#291C24" BorderBrush="#6E3E4B" BorderThickness="1" CornerRadius="13" Padding="20">
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,20,0">
-                                            <TextBlock Text="Undo all system changes" FontSize="15" FontWeight="SemiBold" Foreground="#FFB3BA" />
-                                            <TextBlock Text="Lower the bridge, restore adapter DNS to DHCP, and disable the LAN monitor. The service and your saved rules remain installed."
-                                                       Foreground="#C69AA0" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="42" Height="42" CornerRadius="11" Background="#40242D" VerticalAlignment="Top">
+                                            <TextBlock Text="↶" Foreground="#FF9BA4" FontSize="20"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="14,0,22,0">
+                                            <TextBlock Text="Undo all system changes" FontSize="15" FontWeight="SemiBold" Foreground="#FFC3C8" />
+                                            <TextBlock Text="Lower the bridge, restore adapter DNS to DHCP, and disable the LAN dashboard. Your saved rules stay installed."
+                                                       Foreground="#C89CA4" TextWrapping="Wrap" LineHeight="18" Margin="0,5,0,0" />
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Undo changes" Style="{StaticResource DangerButton}" VerticalAlignment="Center"
-                                                Click="UndoChangesButton_OnClick" />
+                                        <Button Grid.Column="2" Content="Undo changes" Style="{StaticResource DangerButton}"
+                                                VerticalAlignment="Center" Click="UndoChangesButton_OnClick" />
                                     </Grid>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
 
-                        <ScrollViewer x:Name="SecurityPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                            <StackPanel MaxWidth="650" HorizontalAlignment="Left">
-                                <TextBlock Text="Security" FontSize="27" FontWeight="SemiBold" />
-                                <TextBlock Text="Protect changes and access with an in-memory unlock session" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,18" />
+                        <ScrollViewer x:Name="SecurityPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,9,0">
+                            <StackPanel MaxWidth="800" HorizontalAlignment="Left">
+                                <TextBlock Text="Security" Style="{StaticResource PageTitleStyle}" />
+                                <TextBlock Text="Protect settings with a private, in-memory unlock session."
+                                           Style="{StaticResource PageSubtitleStyle}" Margin="0,5,0,23" />
 
-                                <Border Style="{StaticResource CardStyle}">
+                                <Border Style="{StaticResource CardStyle}" Padding="0">
                                     <StackPanel>
-                                        <Grid Margin="0,0,0,18">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                        <Grid Margin="22,21,22,20">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="46" Height="46" CornerRadius="13" Background="#1B3150">
+                                                <Viewbox Width="22" Height="22">
+                                                    <Path Stroke="#8CB0FF" Fill="Transparent" StrokeThickness="1.6" StrokeLineJoin="Round"
+                                                          Data="M9,1 L16,4 V9 C16,13 13,16 9,18 C5,16 2,13 2,9 V4 Z M6.5,9 L8.3,10.8 L12,7" />
+                                                </Viewbox>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="14,0,22,0" VerticalAlignment="Center">
                                                 <TextBlock Text="Control-panel PIN" FontSize="17" FontWeight="SemiBold" />
-                                                <TextBlock x:Name="SecurityStatusText" Text="Checking PIN status…" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                                <TextBlock x:Name="SecurityStatusText" Text="Checking PIN status…"
+                                                           Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                             </StackPanel>
-                                            <Border x:Name="SecurityBadge" Grid.Column="1" CornerRadius="10" Background="#2E384A" Padding="10,5" VerticalAlignment="Center">
-                                                <TextBlock x:Name="SecurityBadgeText" Text="CHECKING" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" />
+                                            <Border x:Name="SecurityBadge" Grid.Column="2" CornerRadius="11" Background="#2E384A"
+                                                    Padding="11,6" VerticalAlignment="Center">
+                                                <TextBlock x:Name="SecurityBadgeText" Text="CHECKING" FontSize="10" FontWeight="Bold"
+                                                           Foreground="{StaticResource MutedTextBrush}" />
                                             </Border>
                                         </Grid>
 
-                                        <TextBlock Text="New PIN (4–12 digits)" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" />
-                                        <PasswordBox x:Name="NewPinBox" MaxLength="12" />
-                                        <TextBlock Text="Confirm new PIN" Foreground="{StaticResource MutedTextBrush}" Margin="0,13,0,6" />
-                                        <PasswordBox x:Name="ConfirmPinBox" MaxLength="12" />
+                                        <Border Height="1" Background="{StaticResource BorderBrush}" />
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
-                                            <Button x:Name="SetPinButton" Content="Set PIN" Style="{StaticResource PrimaryButton}" MinWidth="120" Click="SetPinButton_OnClick" />
-                                            <Button x:Name="RemovePinButton" Content="Remove PIN" Style="{StaticResource DangerButton}" MinWidth="120" Margin="10,0,0,0"
-                                                    Click="RemovePinButton_OnClick" Visibility="Collapsed" />
+                                        <StackPanel Margin="22,21,22,22">
+                                            <TextBlock Text="Create or change your PIN" Style="{StaticResource SectionTitleStyle}" />
+                                            <TextBlock Text="Use 4–12 digits. You will be asked for it after the panel is locked or reopened."
+                                                       Style="{StaticResource SectionCaptionStyle}" />
+                                            <Grid Margin="0,18,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="14" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="NEW PIN" Style="{StaticResource FieldLabelStyle}" />
+                                                    <PasswordBox x:Name="NewPinBox" MaxLength="12" AutomationProperties.Name="New PIN" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="CONFIRM PIN" Style="{StaticResource FieldLabelStyle}" />
+                                                    <PasswordBox x:Name="ConfirmPinBox" MaxLength="12" AutomationProperties.Name="Confirm new PIN" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                                                <Button x:Name="SetPinButton" Content="Set PIN" Style="{StaticResource PrimaryButton}"
+                                                        MinWidth="120" Click="SetPinButton_OnClick" />
+                                                <Button x:Name="RemovePinButton" Content="Remove PIN" Style="{StaticResource DangerButton}"
+                                                        MinWidth="120" Margin="10,0,0,0" Click="RemovePinButton_OnClick" Visibility="Collapsed" />
+                                            </StackPanel>
                                         </StackPanel>
-
-                                        <Border Background="#19202C" CornerRadius="7" Padding="12" Margin="0,19,0,0">
-                                            <TextBlock Text="The PIN is never stored by this app. After a successful unlock it stays only in memory and is cleared whenever you lock or close the window."
-                                                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
-                                        </Border>
                                     </StackPanel>
+                                </Border>
+
+                                <Border Background="#101B2A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        CornerRadius="11" Padding="17" Margin="0,16,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="31" Height="31" CornerRadius="16" Background="#1D304A" VerticalAlignment="Top">
+                                            <TextBlock Text="i" Foreground="#8CB0FF" FontFamily="Georgia" FontWeight="Bold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                            <TextBlock Text="Your unlock stays local" FontWeight="SemiBold" />
+                                            <TextBlock Text="The app never stores the PIN. After a successful unlock it remains only in memory and is cleared whenever you lock or close the window."
+                                                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="18" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
 
                         <Grid x:Name="LogsPage" Visibility="Collapsed">
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <Grid Margin="0,0,0,17">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,22">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Logs" FontSize="27" FontWeight="SemiBold" />
-                                    <TextBlock Text="Recent service events, refreshed every two seconds" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                    <TextBlock Text="Logs" Style="{StaticResource PageTitleStyle}" />
+                                    <TextBlock Text="A live, read-only stream from the Drawbridge service."
+                                               Style="{StaticResource PageSubtitleStyle}" />
                                 </StackPanel>
-                                <TextBlock x:Name="LogsUpdatedText" HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                <Border Grid.Column="1" Background="#151F2E" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="10" Padding="11,7" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" />
+                                        <TextBlock x:Name="LogsUpdatedText" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                    </StackPanel>
+                                </Border>
                             </Grid>
-                            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="1">
-                                <TextBox x:Name="LogsTextBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
-                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                         FontFamily="Cascadia Mono, Consolas" FontSize="12" BorderThickness="0" Padding="15"
-                                         Background="#151A23" />
+                            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0" ClipToBounds="True">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="45" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <Border Background="#172131" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                                            CornerRadius="13,13,0,0" Padding="16,0">
+                                        <Grid>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="#FF6B78" Margin="0,0,7,0" />
+                                                <Ellipse Width="8" Height="8" Fill="#F4BE5B" Margin="0,0,7,0" />
+                                                <Ellipse Width="8" Height="8" Fill="#43D39E" Margin="0,0,15,0" />
+                                                <TextBlock Text="SERVICE EVENT STREAM" Foreground="{StaticResource MutedTextBrush}"
+                                                           FontSize="10" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Text="READ ONLY" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                       Foreground="#60738E" FontSize="9" FontWeight="SemiBold" />
+                                        </Grid>
+                                    </Border>
+                                    <TextBox x:Name="LogsTextBox" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                             FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                             BorderThickness="0" Padding="18" Background="#0D141E" />
+                                </Grid>
                             </Border>
                         </Grid>
                     </Grid>
                 </Grid>
             </Grid>
 
-            <Grid x:Name="LockOverlay" Grid.RowSpan="2" Background="#EC111722" Panel.ZIndex="100">
-                <Border Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" Style="{StaticResource CardStyle}" Padding="28">
-                    <Border.Effect><DropShadowEffect BlurRadius="30" ShadowDepth="7" Opacity="0.5" Color="Black" /></Border.Effect>
+            <Grid x:Name="LockOverlay" Grid.RowSpan="2" Background="#F20A0F18" Panel.ZIndex="100">
+                <Border Width="452" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Background="#131E2D" BorderBrush="#344963" BorderThickness="1"
+                        CornerRadius="16" Padding="32">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="38" ShadowDepth="8" Opacity="0.58" Color="Black" />
+                    </Border.Effect>
                     <StackPanel>
-                        <Grid Width="58" Height="51" HorizontalAlignment="Center" Margin="0,0,0,15">
-                            <Rectangle Width="48" Height="29" Fill="#75A7FF" RadiusX="3" RadiusY="3" VerticalAlignment="Bottom" />
-                            <Rectangle Width="13" Height="21" Fill="#75A7FF" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5,0,0,0" />
-                            <Rectangle Width="13" Height="21" Fill="#75A7FF" HorizontalAlignment="Center" VerticalAlignment="Top" />
-                            <Rectangle Width="13" Height="21" Fill="#75A7FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,5,0" />
-                            <Rectangle Width="10" Height="14" Fill="{StaticResource CardBrush}" VerticalAlignment="Bottom" />
-                        </Grid>
-                        <TextBlock x:Name="LockTitleText" Text="Connecting securely…" FontSize="23" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <Border Width="66" Height="66" CornerRadius="20" Background="#1A2D49"
+                                BorderBrush="#2B466B" BorderThickness="1" HorizontalAlignment="Center" Margin="0,0,0,18">
+                            <Viewbox Width="29" Height="29">
+                                <Grid Width="24" Height="24">
+                                    <Path Stroke="#91B2FF" StrokeThickness="1.8" Fill="Transparent" StrokeLineJoin="Round"
+                                          Data="M6,10 V7 C6,3.8 8.5,2 12,2 C15.5,2 18,3.8 18,7 V10 M4,10 H20 V22 H4 Z M12,14 V18" />
+                                </Grid>
+                            </Viewbox>
+                        </Border>
+                        <TextBlock x:Name="LockTitleText" Text="Connecting securely…" FontSize="24" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" />
                         <TextBlock x:Name="LockDescriptionText" Text="Checking the filtering service" Foreground="{StaticResource MutedTextBrush}"
-                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,7,0,0" />
+                                   TextWrapping="Wrap" TextAlignment="Center" LineHeight="19" Margin="12,8,12,0" />
 
-                        <StackPanel x:Name="LockPromptPanel" Visibility="Collapsed" Margin="0,22,0,0">
-                            <PasswordBox x:Name="LockPinBox" MaxLength="128" FontSize="18" PasswordChar="●" HorizontalContentAlignment="Center"
+                        <StackPanel x:Name="LockPromptPanel" Visibility="Collapsed" Margin="9,25,9,0">
+                            <TextBlock Text="CONTROL-PANEL PIN" Style="{StaticResource FieldLabelStyle}"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8" />
+                            <PasswordBox x:Name="LockPinBox" MaxLength="128" FontSize="18" PasswordChar="●"
+                                         AutomationProperties.Name="Control-panel PIN"
+                                         HorizontalContentAlignment="Center" MinHeight="46"
                                          KeyDown="LockPinBox_OnKeyDown" />
-                            <Button x:Name="UnlockButton" Content="Unlock" Style="{StaticResource PrimaryButton}" Margin="0,12,0,0"
+                            <Button x:Name="UnlockButton" Content="Unlock control center" Style="{StaticResource PrimaryButton}" Margin="0,13,0,0"
                                     Click="UnlockButton_OnClick" />
-                            <TextBlock x:Name="LockErrorText" Foreground="{StaticResource DangerBrush}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,11,0,0" />
-                            <TextBlock x:Name="LockDelayText" Foreground="{StaticResource WarningBrush}" TextAlignment="Center" Margin="0,5,0,0" />
+                            <TextBlock x:Name="LockErrorText" Foreground="{StaticResource DangerBrush}" TextAlignment="Center"
+                                       TextWrapping="Wrap" LineHeight="18" Margin="0,12,0,0" />
+                            <TextBlock x:Name="LockDelayText" Foreground="{StaticResource WarningBrush}"
+                                       TextAlignment="Center" Margin="0,6,0,0" />
                         </StackPanel>
 
-                        <Button x:Name="LockStartServiceButton" Content="Start service" Style="{StaticResource SecondaryButton}" Margin="0,17,0,0"
+                        <Button x:Name="LockStartServiceButton" Content="Start Drawbridge service" Style="{StaticResource SecondaryButton}"
+                                Margin="9,20,9,0"
                                 Visibility="Collapsed" Click="StartServiceButton_OnClick" />
                     </StackPanel>
                 </Border>

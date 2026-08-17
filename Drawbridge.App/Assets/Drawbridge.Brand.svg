@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Drawbridge brand mark, authored on a 64 x 64 grid.
+  Keep the geometry in this file aligned with BrandMark.xaml,
+  CastleIconFactory.cs, and tools/Generate-BrandAssets.ps1.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">Drawbridge</title>
+  <desc id="description">A white castle with a blue lowered drawbridge on a midnight shield.</desc>
+  <defs>
+    <linearGradient id="background" x1="13" y1="6" x2="51" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#293957" />
+      <stop offset="1" stop-color="#101724" />
+    </linearGradient>
+    <linearGradient id="bridge" x1="32" y1="37" x2="32" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#89BAFF" />
+      <stop offset="1" stop-color="#4D8FF3" />
+    </linearGradient>
+  </defs>
+
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#background)" stroke="#4D6792" stroke-width="1.5" />
+
+  <path fill="#F7FAFF" d="M11 46V28h3v-9h6v5h8v-6h8v6h8v-5h6v9h3v18H11Z" />
+  <rect x="17" y="31" width="4" height="5" rx="1" fill="#1A2436" />
+  <rect x="43" y="31" width="4" height="5" rx="1" fill="#1A2436" />
+  <path fill="#151F30" d="M24 47V37a8 8 0 0 1 16 0v10H24Z" />
+
+  <path fill="url(#bridge)" d="m27 38 10 0 6 16H21l6-16Z" />
+  <path fill="none" stroke="#DCEAFF" stroke-linecap="round" stroke-width="1.25" opacity=".82" d="M26 43h12M24 48h16M28.5 39.5 25 53M35.5 39.5 39 53" />
+</svg>

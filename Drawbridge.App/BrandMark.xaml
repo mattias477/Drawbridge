@@ -1,0 +1,37 @@
+<UserControl x:Class="Drawbridge.App.BrandMark"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True"
+             IsHitTestVisible="False">
+    <Viewbox Stretch="Uniform">
+        <Canvas Width="64" Height="64">
+            <Rectangle Canvas.Left="3" Canvas.Top="3" Width="58" Height="58" RadiusX="15" RadiusY="15"
+                       Stroke="#4D6792" StrokeThickness="1.5">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0.18,0" EndPoint="0.82,1">
+                        <GradientStop Offset="0" Color="#293957" />
+                        <GradientStop Offset="1" Color="#101724" />
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <Path Fill="#F7FAFF" Data="M11,46 L11,28 L14,28 L14,19 L20,19 L20,24 L28,24 L28,18 L36,18 L36,24 L44,24 L44,19 L50,19 L50,28 L53,28 L53,46 Z" />
+            <Rectangle Canvas.Left="17" Canvas.Top="31" Width="4" Height="5" RadiusX="1" RadiusY="1" Fill="#1A2436" />
+            <Rectangle Canvas.Left="43" Canvas.Top="31" Width="4" Height="5" RadiusX="1" RadiusY="1" Fill="#1A2436" />
+            <Path Fill="#151F30" Data="M24,47 L24,37 A8,8 0 0 1 40,37 L40,47 Z" />
+
+            <Path Data="M27,38 L37,38 L43,54 L21,54 Z">
+                <Path.Fill>
+                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                        <GradientStop Offset="0" Color="#89BAFF" />
+                        <GradientStop Offset="1" Color="#4D8FF3" />
+                    </LinearGradientBrush>
+                </Path.Fill>
+            </Path>
+            <Path Data="M26,43 L38,43 M24,48 L40,48 M28.5,39.5 L25,53 M35.5,39.5 L39,53"
+                  Stroke="#DCEAFF" StrokeThickness="1.25" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.82" />
+        </Canvas>
+    </Viewbox>
+</UserControl>

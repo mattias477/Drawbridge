@@ -421,7 +421,8 @@ public partial class MainWindow : Window
                 this,
                 "Bring forward Drawbridge 1.x settings?",
                 "A legacy Drawbridge profile was found. The Windows service can securely copy its settings into the new shared data store. Existing legacy files will be left untouched.",
-                "Migrate settings");
+                "Migrate settings",
+                tone: ConfirmationTone.Information);
             if (!accepted)
             {
                 return;
