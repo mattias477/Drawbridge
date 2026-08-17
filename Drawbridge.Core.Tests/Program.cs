@@ -24,6 +24,7 @@ internal static class Program
         ("legacy cache and metadata migration", LegacyCacheMigrationAsync),
         ("legacy PIN compatibility", LegacyPinCompatibilityAsync),
         ("block history retention and lifetime count", BlockHistoryAsync),
+        ("verified idempotent cleanup helpers", CleanupHelpersAsync),
         ("transactional dual-stack UDP/TCP server", DnsServerLifecycleAndPathsAsync),
     ];
 
@@ -338,6 +339,74 @@ internal static class Program
         Assert.Equal(1, reloaded.TodayBlocked);
         Assert.Equal(11L, reloaded.AllTimeBlocked);
         Assert.Equal(clock.GetUtcNow().UtcDateTime.Date, reloaded.Recent(1).Single().Timestamp.Date);
+        return Task.CompletedTask;
+    }
+
+    private static Task CleanupHelpersAsync()
+    {
+        Assert.True(SystemIntegration.CleanupSucceeded(
+            dnsRestored: true,
+            firewallRemoved: true,
+            scheduledTaskRemoved: true));
+        Assert.False(SystemIntegration.CleanupSucceeded(false, true, true));
+        Assert.False(SystemIntegration.CleanupSucceeded(true, false, true));
+        Assert.False(SystemIntegration.CleanupSucceeded(true, true, false));
+
+        int removalCalls = 0;
+        var log = new List<string>();
+        bool alreadyAbsent = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            OwnedArtifactProbe.Absent,
+            () =>
+            {
+                removalCalls++;
+                return OwnedArtifactRemoval.Success();
+            },
+            log.Add);
+        Assert.True(alreadyAbsent);
+        Assert.Equal(0, removalCalls);
+        Assert.True(log.Single().Contains("already absent", StringComparison.Ordinal));
+
+        var probes = new Queue<OwnedArtifactProbe>(
+            [OwnedArtifactProbe.Present(), OwnedArtifactProbe.Absent()]);
+        bool removedAndVerified = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            probes.Dequeue,
+            OwnedArtifactRemoval.Success,
+            log.Add);
+        Assert.True(removedAndVerified);
+
+        bool probeFailed = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            () => OwnedArtifactProbe.Failure("probe denied"),
+            OwnedArtifactRemoval.Success,
+            log.Add);
+        Assert.False(probeFailed);
+
+        bool deleteFailed = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            OwnedArtifactProbe.Present,
+            () => OwnedArtifactRemoval.Failure("delete denied"),
+            log.Add);
+        Assert.False(deleteFailed);
+
+        probes = new Queue<OwnedArtifactProbe>(
+            [OwnedArtifactProbe.Present(), OwnedArtifactProbe.Present()]);
+        bool remainedPresent = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            probes.Dequeue,
+            OwnedArtifactRemoval.Success,
+            log.Add);
+        Assert.False(remainedPresent);
+
+        probes = new Queue<OwnedArtifactProbe>(
+            [OwnedArtifactProbe.Present(), OwnedArtifactProbe.Failure("verification denied")]);
+        bool verificationFailed = SystemIntegration.RemoveOwnedArtifact(
+            "test artifact",
+            probes.Dequeue,
+            OwnedArtifactRemoval.Success,
+            log.Add);
+        Assert.False(verificationFailed);
         return Task.CompletedTask;
     }
 

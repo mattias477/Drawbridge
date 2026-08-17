@@ -1,12 +1,16 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 
 namespace Drawbridge.Core;
 
 /// <summary>Applies and reverses Drawbridge's privileged Windows networking changes.</summary>
 public static class SystemIntegration
 {
+    private const int HResultFileNotFound = unchecked((int)0x80070002);
+    private const int HResultTaskNotFound = unchecked((int)0x8004130F);
+
     /// <summary>The inbound firewall rule owned by the LAN monitor.</summary>
     public const string WebMonitorFirewallRuleName = "Drawbridge Monitor";
 
@@ -130,7 +134,12 @@ public static class SystemIntegration
             return false;
         }
 
-        RemoveWebMonitorFirewallRule(log);
+        if (!RemoveWebMonitorFirewallRule(log))
+        {
+            log?.Invoke("The existing Drawbridge Monitor firewall rule could not be removed; the replacement was not added.");
+            return false;
+        }
+
         bool succeeded = Run(
             "netsh.exe",
             ["advfirewall", "firewall", "add", "rule",
@@ -147,45 +156,265 @@ public static class SystemIntegration
 
     /// <summary>Deletes the inbound firewall rule owned by the LAN web monitor.</summary>
     /// <param name="log">Optional diagnostic sink.</param>
-    /// <returns><see langword="true"/> when netsh accepted the delete command.</returns>
+    /// <returns><see langword="true"/> when the rule is verified absent, including when it never existed.</returns>
     public static bool RemoveWebMonitorFirewallRule(Action<string>? log = null)
     {
         if (!OperatingSystem.IsWindows())
         {
+            log?.Invoke("Firewall-rule removal is available only on Windows.");
             return false;
         }
 
-        return Run(
-            "netsh.exe",
-            ["advfirewall", "firewall", "delete", "rule", $"name={WebMonitorFirewallRuleName}"],
-            log,
-            logNonZeroExit: false);
+        return RemoveOwnedArtifact(
+            "Drawbridge Monitor firewall rule",
+            ProbeWebMonitorFirewallRule,
+            DeleteWebMonitorFirewallRule,
+            log);
     }
 
     /// <summary>
-    /// Best-effort uninstaller cleanup: restores DHCP DNS, removes owned firewall rules, flushes
-    /// DNS, and deletes the legacy login scheduled task.
+    /// Uninstaller cleanup: restores DHCP DNS, removes the owned firewall rule, flushes DNS,
+    /// and deletes the legacy login scheduled task.
     /// </summary>
     /// <param name="log">Optional diagnostic sink.</param>
-    /// <returns><see langword="true"/> when automatic DNS restoration and flushing succeeded.</returns>
+    /// <returns><see langword="true"/> only when DNS restoration and both verified removals succeeded.</returns>
     public static bool FullCleanup(Action<string>? log = null)
     {
         bool dnsRestored = RestoreAutomaticDns(log);
-        RemoveWebMonitorFirewallRule(log);
-        if (OperatingSystem.IsWindows())
+        bool firewallRemoved = RemoveWebMonitorFirewallRule(log);
+        bool scheduledTaskRemoved = RemoveLegacyScheduledTask(log);
+        bool succeeded = CleanupSucceeded(dnsRestored, firewallRemoved, scheduledTaskRemoved);
+
+        log?.Invoke(succeeded
+            ? "Full system cleanup finished."
+            : $"System cleanup incomplete (DNS: {ResultWord(dnsRestored)}, " +
+              $"firewall: {ResultWord(firewallRemoved)}, legacy task: {ResultWord(scheduledTaskRemoved)}).");
+        return succeeded;
+    }
+
+    internal static bool CleanupSucceeded(
+        bool dnsRestored,
+        bool firewallRemoved,
+        bool scheduledTaskRemoved) =>
+        dnsRestored && firewallRemoved && scheduledTaskRemoved;
+
+    internal static bool RemoveOwnedArtifact(
+        string description,
+        Func<OwnedArtifactProbe> probe,
+        Func<OwnedArtifactRemoval> remove,
+        Action<string>? log)
+    {
+        OwnedArtifactProbe before = probe();
+        if (before.State == OwnedArtifactState.Absent)
         {
-            Run(
-                "schtasks.exe",
-                ["/Delete", "/F", "/TN", LegacyScheduledTaskName],
-                log,
-                logNonZeroExit: false);
+            log?.Invoke($"{description} is already absent.");
+            return true;
         }
 
-        log?.Invoke(dnsRestored
-            ? "Full system cleanup finished."
-            : "System cleanup finished, but automatic DNS restoration was incomplete.");
-        return dnsRestored;
+        if (before.State == OwnedArtifactState.Failed)
+        {
+            log?.Invoke($"Could not inspect {description}: {before.Error ?? "unknown error"}");
+            return false;
+        }
+
+        OwnedArtifactRemoval removal = remove();
+        if (!removal.Succeeded)
+        {
+            log?.Invoke($"Could not remove {description}: {removal.Error ?? "unknown error"}");
+            return false;
+        }
+
+        OwnedArtifactProbe after = probe();
+        if (after.State == OwnedArtifactState.Absent)
+        {
+            log?.Invoke($"{description} removed.");
+            return true;
+        }
+
+        log?.Invoke(after.State == OwnedArtifactState.Present
+            ? $"Could not verify removal of {description}: it is still present."
+            : $"Could not verify removal of {description}: {after.Error ?? "unknown error"}");
+        return false;
     }
+
+    private static bool RemoveLegacyScheduledTask(Action<string>? log)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            log?.Invoke("Legacy scheduled-task removal is available only on Windows.");
+            return false;
+        }
+
+        return RemoveOwnedArtifact(
+            "legacy Drawbridge scheduled task",
+            ProbeLegacyScheduledTask,
+            DeleteLegacyScheduledTask,
+            log);
+    }
+
+    private static OwnedArtifactProbe ProbeWebMonitorFirewallRule() =>
+        WithFirewallRules(rules =>
+        {
+            object? rule = null;
+            try
+            {
+                rule = ((dynamic)rules).Item(WebMonitorFirewallRuleName);
+                return rule is null
+                    ? OwnedArtifactProbe.Absent()
+                    : OwnedArtifactProbe.Present();
+            }
+            catch (Exception ex) when (IsArtifactNotFound(ex))
+            {
+                return OwnedArtifactProbe.Absent();
+            }
+            finally
+            {
+                ReleaseComObject(rule);
+            }
+        }, OwnedArtifactProbe.Failure);
+
+    private static OwnedArtifactRemoval DeleteWebMonitorFirewallRule() =>
+        WithFirewallRules(rules =>
+        {
+            try
+            {
+                ((dynamic)rules).Remove(WebMonitorFirewallRuleName);
+                return OwnedArtifactRemoval.Success();
+            }
+            catch (Exception ex) when (IsArtifactNotFound(ex))
+            {
+                return OwnedArtifactRemoval.Success();
+            }
+            catch (Exception ex)
+            {
+                return OwnedArtifactRemoval.Failure(Unwrap(ex).Message);
+            }
+        }, OwnedArtifactRemoval.Failure);
+
+    private static OwnedArtifactProbe ProbeLegacyScheduledTask()
+    {
+        object? service = null;
+        object? folder = null;
+        object? task = null;
+        try
+        {
+            service = CreateComObject("Schedule.Service");
+            ((dynamic)service).Connect();
+            folder = ((dynamic)service).GetFolder("\\");
+            task = ((dynamic)folder).GetTask(LegacyScheduledTaskName);
+            return task is null
+                ? OwnedArtifactProbe.Absent()
+                : OwnedArtifactProbe.Present();
+        }
+        catch (Exception ex) when (IsArtifactNotFound(ex))
+        {
+            return OwnedArtifactProbe.Absent();
+        }
+        catch (Exception ex)
+        {
+            return OwnedArtifactProbe.Failure(Unwrap(ex).Message);
+        }
+        finally
+        {
+            ReleaseComObject(task);
+            ReleaseComObject(folder);
+            ReleaseComObject(service);
+        }
+    }
+
+    private static OwnedArtifactRemoval DeleteLegacyScheduledTask()
+    {
+        object? service = null;
+        object? folder = null;
+        try
+        {
+            service = CreateComObject("Schedule.Service");
+            ((dynamic)service).Connect();
+            folder = ((dynamic)service).GetFolder("\\");
+            ((dynamic)folder).DeleteTask(LegacyScheduledTaskName, 0);
+            return OwnedArtifactRemoval.Success();
+        }
+        catch (Exception ex) when (IsArtifactNotFound(ex))
+        {
+            return OwnedArtifactRemoval.Success();
+        }
+        catch (Exception ex)
+        {
+            return OwnedArtifactRemoval.Failure(Unwrap(ex).Message);
+        }
+        finally
+        {
+            ReleaseComObject(folder);
+            ReleaseComObject(service);
+        }
+    }
+
+    private static T WithFirewallRules<T>(
+        Func<object, T> operation,
+        Func<string, T> failure)
+    {
+        object? policy = null;
+        object? rules = null;
+        try
+        {
+            policy = CreateComObject("HNetCfg.FwPolicy2");
+            rules = ((dynamic)policy).Rules;
+            return operation(rules);
+        }
+        catch (Exception ex)
+        {
+            return failure(Unwrap(ex).Message);
+        }
+        finally
+        {
+            ReleaseComObject(rules);
+            ReleaseComObject(policy);
+        }
+    }
+
+    private static object CreateComObject(string programmaticIdentifier)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Windows COM is unavailable on this platform.");
+        }
+
+        Type type = Type.GetTypeFromProgID(programmaticIdentifier, throwOnError: false)
+                    ?? throw new InvalidOperationException(
+                        $"Windows COM component {programmaticIdentifier} is unavailable.");
+        return Activator.CreateInstance(type)
+               ?? throw new InvalidOperationException(
+                   $"Windows COM component {programmaticIdentifier} could not be created.");
+    }
+
+    private static bool IsArtifactNotFound(Exception exception)
+    {
+        Exception unwrapped = Unwrap(exception);
+        return unwrapped.HResult is HResultFileNotFound or HResultTaskNotFound;
+    }
+
+    private static Exception Unwrap(Exception exception)
+    {
+        while (exception.InnerException is not null &&
+               exception is System.Reflection.TargetInvocationException or AggregateException)
+        {
+            exception = exception.InnerException;
+        }
+
+        return exception;
+    }
+
+    private static void ReleaseComObject(object? value)
+    {
+        if (!OperatingSystem.IsWindows() || value is null || !Marshal.IsComObject(value))
+        {
+            return;
+        }
+
+        try { Marshal.FinalReleaseComObject(value); } catch { }
+    }
+
+    private static string ResultWord(bool succeeded) => succeeded ? "ok" : "failed";
 
     private static IEnumerable<NetworkInterface> ActiveRealAdapters()
     {
@@ -281,4 +510,27 @@ public static class SystemIntegration
             return false;
         }
     }
+}
+
+internal enum OwnedArtifactState
+{
+    Present,
+    Absent,
+    Failed,
+}
+
+internal readonly record struct OwnedArtifactProbe(OwnedArtifactState State, string? Error)
+{
+    internal static OwnedArtifactProbe Present() => new(OwnedArtifactState.Present, null);
+
+    internal static OwnedArtifactProbe Absent() => new(OwnedArtifactState.Absent, null);
+
+    internal static OwnedArtifactProbe Failure(string error) => new(OwnedArtifactState.Failed, error);
+}
+
+internal readonly record struct OwnedArtifactRemoval(bool Succeeded, string? Error)
+{
+    internal static OwnedArtifactRemoval Success() => new(true, null);
+
+    internal static OwnedArtifactRemoval Failure(string error) => new(false, error);
 }
