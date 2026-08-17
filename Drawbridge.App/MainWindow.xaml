@@ -229,7 +229,8 @@
                             </Viewbox>
                         </Button>
                     </StackPanel>
-                    <Border Grid.Column="0" Grid.ColumnSpan="2"
+                    <Border Grid.Column="0" Grid.ColumnSpan="3"
+                            Panel.ZIndex="10"
                             Height="1"
                             VerticalAlignment="Bottom"
                             Background="#263449"
