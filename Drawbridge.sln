@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.Core", "Drawbrid
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.Service", "Drawbridge.Service\Drawbridge.Service.csproj", "{A5B92D31-92A9-43D0-83AE-F4118AC66AEF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.App", "Drawbridge.App\Drawbridge.App.csproj", "{D9A2B0AA-EF22-485E-88D3-7669E2043DF9}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawbridge.Core.Tests", "Drawbridge.Core.Tests\Drawbridge.Core.Tests.csproj", "{C60C57E9-426E-46AA-9CC6-D4D4B310980D}"
 EndProject
 Global
@@ -22,6 +24,10 @@ Global
 		{A5B92D31-92A9-43D0-83AE-F4118AC66AEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5B92D31-92A9-43D0-83AE-F4118AC66AEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5B92D31-92A9-43D0-83AE-F4118AC66AEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9A2B0AA-EF22-485E-88D3-7669E2043DF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9A2B0AA-EF22-485E-88D3-7669E2043DF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9A2B0AA-EF22-485E-88D3-7669E2043DF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9A2B0AA-EF22-485E-88D3-7669E2043DF9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C60C57E9-426E-46AA-9CC6-D4D4B310980D}.Release|Any CPU.ActiveCfg = Release|Any CPU
