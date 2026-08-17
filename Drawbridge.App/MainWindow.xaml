@@ -96,17 +96,86 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="ToolTip" Value="Remove" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3A2029" />
+                    <Setter Property="Foreground" Value="#FFABB3" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#542631" />
+                    <Setter Property="Foreground" Value="White" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="WindowCaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="52" />
+            <Setter Property="Foreground" Value="#DCE6F5" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="CaptionSurface"
+                                Background="{TemplateBinding Background}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Border x:Name="CaptionFocusRing"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="1" />
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CaptionSurface" Property="Background" Value="#27364A" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CaptionSurface" Property="Background" Value="#344A64" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="CaptionFocusRing" Property="BorderBrush" Value="#8CB0FF" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="Tag" Value="Close" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="CaptionSurface" Property="Background" Value="#C42B3A" />
+                                <Setter Property="Foreground" Value="White" />
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsPressed" Value="True" />
+                                    <Condition Property="Tag" Value="Close" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="CaptionSurface" Property="Background" Value="#9F1F2D" />
+                                <Setter Property="Foreground" Value="White" />
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="CaptionSurface" Property="Opacity" Value="0.42" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Border BorderBrush="#2C3A4F" BorderThickness="1" Background="{StaticResource WindowBrush}">
+    <Border BorderThickness="0" Background="{StaticResource WindowBrush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="52" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#111925" BorderBrush="#263449" BorderThickness="0,0,0,1"
+            <Border Grid.Row="0" Background="#111925" BorderThickness="0"
                     MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -134,11 +203,37 @@
                         <TextBlock x:Name="ActionMessageText" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                     </Border>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Width="48" Height="51" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
-                                FontSize="17" Content="−" ToolTip="Minimize" Click="MinimizeButton_OnClick" />
-                        <Button Width="48" Height="51" BorderThickness="0" Background="Transparent" Foreground="{StaticResource MutedTextBrush}"
-                                FontSize="15" Content="×" ToolTip="Close to tray" Click="CloseButton_OnClick" />
+                        <Button Style="{StaticResource WindowCaptionButton}"
+                                ToolTip="Minimize"
+                                AutomationProperties.Name="Minimize"
+                                Click="MinimizeButton_OnClick">
+                            <Viewbox Width="14" Height="14">
+                                <Path Data="M1.5,8 H14.5"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.6"
+                                      StrokeStartLineCap="Square"
+                                      StrokeEndLineCap="Square" />
+                            </Viewbox>
+                        </Button>
+                        <Button Style="{StaticResource WindowCaptionButton}"
+                                Tag="Close"
+                                ToolTip="Close to tray"
+                                AutomationProperties.Name="Close to tray"
+                                Click="CloseButton_OnClick">
+                            <Viewbox Width="14" Height="14">
+                                <Path Data="M2,2 L14,14 M14,2 L2,14"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.6"
+                                      StrokeStartLineCap="Square"
+                                      StrokeEndLineCap="Square" />
+                            </Viewbox>
+                        </Button>
                     </StackPanel>
+                    <Border Grid.Column="0" Grid.ColumnSpan="2"
+                            Height="1"
+                            VerticalAlignment="Bottom"
+                            Background="#263449"
+                            IsHitTestVisible="False" />
                 </Grid>
             </Border>
 

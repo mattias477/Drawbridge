@@ -66,58 +66,84 @@ internal static class CastleIconFactory
 
     private static void DrawMark(System.Drawing.Graphics graphics, bool bridgeUp)
     {
-        using System.Drawing.Drawing2D.GraphicsPath background = CreateRoundedRectangle(3, 3, 58, 58, 15);
-        using var backgroundBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
-            new System.Drawing.PointF(13, 6),
-            new System.Drawing.PointF(51, 60),
-            System.Drawing.Color.FromArgb(255, 41, 57, 87),
-            System.Drawing.Color.FromArgb(255, 16, 23, 36));
-        using var outlinePen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(255, 77, 103, 146), 1.5f);
-        graphics.FillPath(backgroundBrush, background);
-        graphics.DrawPath(outlinePen, background);
+        using System.Drawing.Drawing2D.GraphicsPath shield = CreateShieldPath();
+        using var shieldBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new System.Drawing.PointF(14, 6),
+            new System.Drawing.PointF(50, 59),
+            System.Drawing.Color.FromArgb(255, 36, 58, 98),
+            System.Drawing.Color.FromArgb(255, 9, 19, 33));
+        var blend = new System.Drawing.Drawing2D.ColorBlend
+        {
+            Colors =
+            [
+                System.Drawing.Color.FromArgb(255, 36, 58, 98),
+                System.Drawing.Color.FromArgb(255, 20, 36, 62),
+                System.Drawing.Color.FromArgb(255, 9, 19, 33),
+            ],
+            Positions = [0f, 0.58f, 1f],
+        };
+        shieldBrush.InterpolationColors = blend;
+        using var outlinePen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(255, 87, 126, 184), 1.5f);
+        graphics.FillPath(shieldBrush, shield);
+        graphics.DrawPath(outlinePen, shield);
 
-        using var castle = new System.Drawing.Drawing2D.GraphicsPath();
-        castle.AddPolygon(
-        [
-            new(11, 46), new(11, 28), new(14, 28), new(14, 19),
-            new(20, 19), new(20, 24), new(28, 24), new(28, 18),
-            new(36, 18), new(36, 24), new(44, 24), new(44, 19),
-            new(50, 19), new(50, 28), new(53, 28), new(53, 46),
-        ]);
         using var castleBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 247, 250, 255));
-        graphics.FillPath(castleBrush, castle);
-
-        using var detailBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 26, 36, 54));
-        graphics.FillRectangle(detailBrush, 17, 31, 4, 5);
-        graphics.FillRectangle(detailBrush, 43, 31, 4, 5);
+        graphics.FillPolygon(castleBrush,
+        [
+            new(12, 45), new(12, 19), new(16, 19), new(16, 23),
+            new(20, 23), new(20, 19), new(24, 19), new(24, 45),
+        ]);
+        graphics.FillPolygon(castleBrush,
+        [
+            new(23, 45), new(23, 21), new(27, 21), new(27, 17),
+            new(31, 17), new(31, 21), new(35, 21), new(35, 17),
+            new(39, 17), new(39, 21), new(41, 21), new(41, 45),
+        ]);
+        graphics.FillPolygon(castleBrush,
+        [
+            new(40, 45), new(40, 19), new(44, 19), new(44, 23),
+            new(48, 23), new(48, 19), new(52, 19), new(52, 45),
+        ]);
 
         using var gate = new System.Drawing.Drawing2D.GraphicsPath();
         gate.StartFigure();
-        gate.AddLine(24, 47, 24, 37);
-        gate.AddBezier(24, 37, 24, 26.33f, 40, 26.33f, 40, 37);
-        gate.AddLine(40, 37, 40, 47);
+        gate.AddLine(24, 46, 24, 35);
+        gate.AddBezier(24, 35, 24, 30.58f, 27.58f, 27, 32, 27);
+        gate.AddBezier(32, 27, 36.42f, 27, 40, 30.58f, 40, 35);
+        gate.AddLine(40, 35, 40, 46);
         gate.CloseFigure();
-        using var gateBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 21, 31, 48));
+        using var gateBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 12, 23, 40));
         graphics.FillPath(gateBrush, gate);
 
-        using var bridge = new System.Drawing.Drawing2D.GraphicsPath();
-        bridge.AddPolygon([new(27, 38), new(37, 38), new(43, 54), new(21, 54)]);
-        using var bridgeBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
-            new System.Drawing.PointF(32, 37),
-            new System.Drawing.PointF(32, 54),
-            System.Drawing.Color.FromArgb(255, 137, 186, 255),
-            System.Drawing.Color.FromArgb(255, 77, 143, 243));
-        graphics.FillPath(bridgeBrush, bridge);
-
-        using var plankPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(210, 220, 234, 255), 1.25f)
+        using var chainPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(224, 117, 185, 255), 1.75f)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Round,
             EndCap = System.Drawing.Drawing2D.LineCap.Round,
         };
-        graphics.DrawLine(plankPen, 26, 43, 38, 43);
-        graphics.DrawLine(plankPen, 24, 48, 40, 48);
-        graphics.DrawLine(plankPen, 28.5f, 39.5f, 25, 53);
-        graphics.DrawLine(plankPen, 35.5f, 39.5f, 39, 53);
+        graphics.DrawLine(chainPen, 18, 27, 25, 47);
+        graphics.DrawLine(chainPen, 46, 27, 39, 47);
+
+        using var bridge = new System.Drawing.Drawing2D.GraphicsPath();
+        bridge.AddPolygon([new(27, 35), new(37, 35), new(44, 53), new(20, 53)]);
+        using var bridgeBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new System.Drawing.PointF(32, 34),
+            new System.Drawing.PointF(32, 53),
+            System.Drawing.Color.FromArgb(255, 138, 203, 255),
+            System.Drawing.Color.FromArgb(255, 62, 130, 245));
+        using var bridgeOutline = new System.Drawing.Pen(System.Drawing.Color.FromArgb(255, 184, 221, 255), 1.15f)
+        {
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+        };
+        graphics.FillPath(bridgeBrush, bridge);
+        graphics.DrawPath(bridgeOutline, bridge);
+
+        using var plankPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(194, 229, 242, 255), 1.2f)
+        {
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round,
+        };
+        graphics.DrawLine(plankPen, 24.7f, 41, 39.3f, 41);
+        graphics.DrawLine(plankPen, 22.5f, 47, 41.5f, 47);
 
         System.Drawing.Color statusColor = bridgeUp
             ? System.Drawing.Color.FromArgb(255, 54, 211, 145)
@@ -128,19 +154,16 @@ internal static class CastleIconFactory
         graphics.FillEllipse(statusBrush, 45, 45, 13, 13);
     }
 
-    private static System.Drawing.Drawing2D.GraphicsPath CreateRoundedRectangle(
-        float x,
-        float y,
-        float width,
-        float height,
-        float radius)
+    private static System.Drawing.Drawing2D.GraphicsPath CreateShieldPath()
     {
         var path = new System.Drawing.Drawing2D.GraphicsPath();
-        float diameter = radius * 2;
-        path.AddArc(x, y, diameter, diameter, 180, 90);
-        path.AddArc(x + width - diameter, y, diameter, diameter, 270, 90);
-        path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0, 90);
-        path.AddArc(x, y + height - diameter, diameter, diameter, 90, 90);
+        path.StartFigure();
+        path.AddBezier(32, 3, 42.5f, 3, 52.5f, 6.2f, 58, 10.5f);
+        path.AddLine(58, 10.5f, 58, 28.5f);
+        path.AddBezier(58, 28.5f, 58, 43.2f, 48.2f, 55.6f, 32, 61);
+        path.AddBezier(32, 61, 15.8f, 55.6f, 6, 43.2f, 6, 28.5f);
+        path.AddLine(6, 28.5f, 6, 10.5f);
+        path.AddBezier(6, 10.5f, 11.5f, 6.2f, 21.5f, 3, 32, 3);
         path.CloseFigure();
         return path;
     }

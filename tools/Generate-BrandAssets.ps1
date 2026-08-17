@@ -8,21 +8,15 @@ $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName System.Drawing.Common
 
-function New-RoundedRectanglePath {
-    param(
-        [float] $X,
-        [float] $Y,
-        [float] $Width,
-        [float] $Height,
-        [float] $Radius
-    )
-
+function New-ShieldPath {
     $path = [System.Drawing.Drawing2D.GraphicsPath]::new()
-    $diameter = $Radius * 2
-    $path.AddArc($X, $Y, $diameter, $diameter, 180, 90)
-    $path.AddArc($X + $Width - $diameter, $Y, $diameter, $diameter, 270, 90)
-    $path.AddArc($X + $Width - $diameter, $Y + $Height - $diameter, $diameter, $diameter, 0, 90)
-    $path.AddArc($X, $Y + $Height - $diameter, $diameter, $diameter, 90, 90)
+    $path.StartFigure()
+    $path.AddBezier(32, 3, 42.5, 3, 52.5, 6.2, 58, 10.5)
+    $path.AddLine(58, 10.5, 58, 28.5)
+    $path.AddBezier(58, 28.5, 58, 43.2, 48.2, 55.6, 32, 61)
+    $path.AddBezier(32, 61, 15.8, 55.6, 6, 43.2, 6, 28.5)
+    $path.AddLine(6, 28.5, 6, 10.5)
+    $path.AddBezier(6, 10.5, 11.5, 6.2, 21.5, 3, 32, 3)
     $path.CloseFigure()
     return $path
 }
@@ -33,6 +27,22 @@ function New-PolygonPath {
     $path = [System.Drawing.Drawing2D.GraphicsPath]::new()
     $path.AddPolygon($Points)
     return $path
+}
+
+function Fill-BrandPolygon {
+    param(
+        [System.Drawing.Graphics] $Graphics,
+        [System.Drawing.Brush] $Brush,
+        [System.Drawing.PointF[]] $Points
+    )
+
+    $path = New-PolygonPath $Points
+    try {
+        $Graphics.FillPath($Brush, $path)
+    }
+    finally {
+        $path.Dispose()
+    }
 }
 
 function New-BrandBitmap {
@@ -54,70 +64,79 @@ function New-BrandBitmap {
         $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
         $graphics.ScaleTransform($renderSize / 64.0, $renderSize / 64.0)
 
-        $backgroundPath = New-RoundedRectanglePath 3 3 58 58 15
-        $backgroundBrush = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
-            [System.Drawing.PointF]::new(13, 6),
-            [System.Drawing.PointF]::new(51, 60),
-            [System.Drawing.ColorTranslator]::FromHtml('#293957'),
-            [System.Drawing.ColorTranslator]::FromHtml('#101724'))
+        $shieldPath = New-ShieldPath
+        $shieldBrush = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
+            [System.Drawing.PointF]::new(14, 6),
+            [System.Drawing.PointF]::new(50, 59),
+            [System.Drawing.ColorTranslator]::FromHtml('#243A62'),
+            [System.Drawing.ColorTranslator]::FromHtml('#091321'))
+        $shieldBlend = [System.Drawing.Drawing2D.ColorBlend]::new(3)
+        $shieldBlend.Colors = [System.Drawing.Color[]] @(
+            [System.Drawing.ColorTranslator]::FromHtml('#243A62'),
+            [System.Drawing.ColorTranslator]::FromHtml('#14243E'),
+            [System.Drawing.ColorTranslator]::FromHtml('#091321'))
+        $shieldBlend.Positions = [single[]] @(0, 0.58, 1)
+        $shieldBrush.InterpolationColors = $shieldBlend
         $outlinePen = [System.Drawing.Pen]::new(
-            [System.Drawing.ColorTranslator]::FromHtml('#4D6792'), 1.5)
+            [System.Drawing.ColorTranslator]::FromHtml('#577EB8'), 1.5)
         try {
-            $graphics.FillPath($backgroundBrush, $backgroundPath)
-            $graphics.DrawPath($outlinePen, $backgroundPath)
+            $graphics.FillPath($shieldBrush, $shieldPath)
+            $graphics.DrawPath($outlinePen, $shieldPath)
         }
         finally {
             $outlinePen.Dispose()
-            $backgroundBrush.Dispose()
-            $backgroundPath.Dispose()
+            $shieldBrush.Dispose()
+            $shieldPath.Dispose()
         }
 
-        $castlePoints = [System.Drawing.PointF[]] @(
-            [System.Drawing.PointF]::new(11, 46),
-            [System.Drawing.PointF]::new(11, 28),
-            [System.Drawing.PointF]::new(14, 28),
-            [System.Drawing.PointF]::new(14, 19),
-            [System.Drawing.PointF]::new(20, 19),
-            [System.Drawing.PointF]::new(20, 24),
-            [System.Drawing.PointF]::new(28, 24),
-            [System.Drawing.PointF]::new(28, 18),
-            [System.Drawing.PointF]::new(36, 18),
-            [System.Drawing.PointF]::new(36, 24),
-            [System.Drawing.PointF]::new(44, 24),
-            [System.Drawing.PointF]::new(44, 19),
-            [System.Drawing.PointF]::new(50, 19),
-            [System.Drawing.PointF]::new(50, 28),
-            [System.Drawing.PointF]::new(53, 28),
-            [System.Drawing.PointF]::new(53, 46))
-        $castlePath = New-PolygonPath $castlePoints
         $castleBrush = [System.Drawing.SolidBrush]::new(
             [System.Drawing.ColorTranslator]::FromHtml('#F7FAFF'))
         try {
-            $graphics.FillPath($castleBrush, $castlePath)
+            Fill-BrandPolygon $graphics $castleBrush ([System.Drawing.PointF[]] @(
+                [System.Drawing.PointF]::new(12, 45),
+                [System.Drawing.PointF]::new(12, 19),
+                [System.Drawing.PointF]::new(16, 19),
+                [System.Drawing.PointF]::new(16, 23),
+                [System.Drawing.PointF]::new(20, 23),
+                [System.Drawing.PointF]::new(20, 19),
+                [System.Drawing.PointF]::new(24, 19),
+                [System.Drawing.PointF]::new(24, 45)))
+            Fill-BrandPolygon $graphics $castleBrush ([System.Drawing.PointF[]] @(
+                [System.Drawing.PointF]::new(23, 45),
+                [System.Drawing.PointF]::new(23, 21),
+                [System.Drawing.PointF]::new(27, 21),
+                [System.Drawing.PointF]::new(27, 17),
+                [System.Drawing.PointF]::new(31, 17),
+                [System.Drawing.PointF]::new(31, 21),
+                [System.Drawing.PointF]::new(35, 21),
+                [System.Drawing.PointF]::new(35, 17),
+                [System.Drawing.PointF]::new(39, 17),
+                [System.Drawing.PointF]::new(39, 21),
+                [System.Drawing.PointF]::new(41, 21),
+                [System.Drawing.PointF]::new(41, 45)))
+            Fill-BrandPolygon $graphics $castleBrush ([System.Drawing.PointF[]] @(
+                [System.Drawing.PointF]::new(40, 45),
+                [System.Drawing.PointF]::new(40, 19),
+                [System.Drawing.PointF]::new(44, 19),
+                [System.Drawing.PointF]::new(44, 23),
+                [System.Drawing.PointF]::new(48, 23),
+                [System.Drawing.PointF]::new(48, 19),
+                [System.Drawing.PointF]::new(52, 19),
+                [System.Drawing.PointF]::new(52, 45)))
         }
         finally {
             $castleBrush.Dispose()
-            $castlePath.Dispose()
-        }
-
-        $detailBrush = [System.Drawing.SolidBrush]::new(
-            [System.Drawing.ColorTranslator]::FromHtml('#1A2436'))
-        try {
-            $graphics.FillRectangle($detailBrush, 17, 31, 4, 5)
-            $graphics.FillRectangle($detailBrush, 43, 31, 4, 5)
-        }
-        finally {
-            $detailBrush.Dispose()
         }
 
         $gatePath = [System.Drawing.Drawing2D.GraphicsPath]::new()
         $gatePath.StartFigure()
-        $gatePath.AddLine(24, 47, 24, 37)
-        $gatePath.AddBezier(24, 37, 24, 26.333, 40, 26.333, 40, 37)
-        $gatePath.AddLine(40, 37, 40, 47)
+        $gatePath.AddLine(24, 46, 24, 35)
+        $gatePath.AddBezier(24, 35, 24, 30.58, 27.58, 27, 32, 27)
+        $gatePath.AddBezier(32, 27, 36.42, 27, 40, 30.58, 40, 35)
+        $gatePath.AddLine(40, 35, 40, 46)
         $gatePath.CloseFigure()
         $gateBrush = [System.Drawing.SolidBrush]::new(
-            [System.Drawing.ColorTranslator]::FromHtml('#151F30'))
+            [System.Drawing.ColorTranslator]::FromHtml('#0C1728'))
         try {
             $graphics.FillPath($gateBrush, $gatePath)
         }
@@ -126,35 +145,52 @@ function New-BrandBitmap {
             $gatePath.Dispose()
         }
 
+        if ($Size -ge 20) {
+            $chainPen = [System.Drawing.Pen]::new(
+                [System.Drawing.Color]::FromArgb(224, 117, 185, 255), 1.75)
+            $chainPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+            $chainPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+            try {
+                $graphics.DrawLine($chainPen, 18, 27, 25, 47)
+                $graphics.DrawLine($chainPen, 46, 27, 39, 47)
+            }
+            finally {
+                $chainPen.Dispose()
+            }
+        }
+
         $bridgePoints = [System.Drawing.PointF[]] @(
-            [System.Drawing.PointF]::new(27, 38),
-            [System.Drawing.PointF]::new(37, 38),
-            [System.Drawing.PointF]::new(43, 54),
-            [System.Drawing.PointF]::new(21, 54))
+            [System.Drawing.PointF]::new(27, 35),
+            [System.Drawing.PointF]::new(37, 35),
+            [System.Drawing.PointF]::new(44, 53),
+            [System.Drawing.PointF]::new(20, 53))
         $bridgePath = New-PolygonPath $bridgePoints
         $bridgeBrush = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
-            [System.Drawing.PointF]::new(32, 37),
-            [System.Drawing.PointF]::new(32, 54),
-            [System.Drawing.ColorTranslator]::FromHtml('#89BAFF'),
-            [System.Drawing.ColorTranslator]::FromHtml('#4D8FF3'))
+            [System.Drawing.PointF]::new(32, 34),
+            [System.Drawing.PointF]::new(32, 53),
+            [System.Drawing.ColorTranslator]::FromHtml('#8ACBFF'),
+            [System.Drawing.ColorTranslator]::FromHtml('#3E82F5'))
+        $bridgeOutline = [System.Drawing.Pen]::new(
+            [System.Drawing.ColorTranslator]::FromHtml('#B8DDFF'), 1.15)
+        $bridgeOutline.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
         try {
             $graphics.FillPath($bridgeBrush, $bridgePath)
+            $graphics.DrawPath($bridgeOutline, $bridgePath)
         }
         finally {
+            $bridgeOutline.Dispose()
             $bridgeBrush.Dispose()
             $bridgePath.Dispose()
         }
 
-        if ($Size -ge 24) {
+        if ($Size -ge 20) {
             $plankPen = [System.Drawing.Pen]::new(
-                [System.Drawing.Color]::FromArgb(210, 220, 234, 255), 1.25)
+                [System.Drawing.Color]::FromArgb(194, 229, 242, 255), 1.2)
             $plankPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
             $plankPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
             try {
-                $graphics.DrawLine($plankPen, 26, 43, 38, 43)
-                $graphics.DrawLine($plankPen, 24, 48, 40, 48)
-                $graphics.DrawLine($plankPen, 28.5, 39.5, 25, 53)
-                $graphics.DrawLine($plankPen, 35.5, 39.5, 39, 53)
+                $graphics.DrawLine($plankPen, 24.7, 41, 39.3, 41)
+                $graphics.DrawLine($plankPen, 22.5, 47, 41.5, 47)
             }
             finally {
                 $plankPen.Dispose()
@@ -163,10 +199,6 @@ function New-BrandBitmap {
     }
     finally {
         $graphics.Dispose()
-    }
-
-    if ($supersampling -eq 1) {
-        return $bitmap
     }
 
     $result = [System.Drawing.Bitmap]::new(

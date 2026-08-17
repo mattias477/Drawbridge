@@ -7,31 +7,35 @@
              IsHitTestVisible="False">
     <Viewbox Stretch="Uniform">
         <Canvas Width="64" Height="64">
-            <Rectangle Canvas.Left="3" Canvas.Top="3" Width="58" Height="58" RadiusX="15" RadiusY="15"
-                       Stroke="#4D6792" StrokeThickness="1.5">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0.18,0" EndPoint="0.82,1">
-                        <GradientStop Offset="0" Color="#293957" />
-                        <GradientStop Offset="1" Color="#101724" />
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
-
-            <Path Fill="#F7FAFF" Data="M11,46 L11,28 L14,28 L14,19 L20,19 L20,24 L28,24 L28,18 L36,18 L36,24 L44,24 L44,19 L50,19 L50,28 L53,28 L53,46 Z" />
-            <Rectangle Canvas.Left="17" Canvas.Top="31" Width="4" Height="5" RadiusX="1" RadiusY="1" Fill="#1A2436" />
-            <Rectangle Canvas.Left="43" Canvas.Top="31" Width="4" Height="5" RadiusX="1" RadiusY="1" Fill="#1A2436" />
-            <Path Fill="#151F30" Data="M24,47 L24,37 A8,8 0 0 1 40,37 L40,47 Z" />
-
-            <Path Data="M27,38 L37,38 L43,54 L21,54 Z">
+            <Path Data="M32,3 C42.5,3 52.5,6.2 58,10.5 L58,28.5 C58,43.2 48.2,55.6 32,61 C15.8,55.6 6,43.2 6,28.5 L6,10.5 C11.5,6.2 21.5,3 32,3 Z"
+                  Stroke="#577EB8" StrokeThickness="1.5">
                 <Path.Fill>
-                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                        <GradientStop Offset="0" Color="#89BAFF" />
-                        <GradientStop Offset="1" Color="#4D8FF3" />
+                    <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+                        <GradientStop Offset="0" Color="#243A62" />
+                        <GradientStop Offset="0.58" Color="#14243E" />
+                        <GradientStop Offset="1" Color="#091321" />
                     </LinearGradientBrush>
                 </Path.Fill>
             </Path>
-            <Path Data="M26,43 L38,43 M24,48 L40,48 M28.5,39.5 L25,53 M35.5,39.5 L39,53"
-                  Stroke="#DCEAFF" StrokeThickness="1.25" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.82" />
+
+            <Path Fill="#F7FAFF" Data="M12,45 L12,19 L16,19 L16,23 L20,23 L20,19 L24,19 L24,45 Z" />
+            <Path Fill="#F7FAFF" Data="M23,45 L23,21 L27,21 L27,17 L31,17 L31,21 L35,21 L35,17 L39,17 L39,21 L41,21 L41,45 Z" />
+            <Path Fill="#F7FAFF" Data="M40,45 L40,19 L44,19 L44,23 L48,23 L48,19 L52,19 L52,45 Z" />
+            <Path Fill="#0C1728"
+                  Data="M24,46 L24,35 C24,30.6 27.6,27 32,27 C36.4,27 40,30.6 40,35 L40,46 Z" />
+
+            <Path Data="M18,27 L25,47 M46,27 L39,47"
+                  Stroke="#75B9FF" StrokeThickness="1.75" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.88" />
+            <Path Data="M27,35 L37,35 L44,53 L20,53 Z" Stroke="#B8DDFF" StrokeThickness="1.15" StrokeLineJoin="Round">
+                <Path.Fill>
+                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                        <GradientStop Offset="0" Color="#8ACBFF" />
+                        <GradientStop Offset="1" Color="#3E82F5" />
+                    </LinearGradientBrush>
+                </Path.Fill>
+            </Path>
+            <Path Data="M24.7,41 L39.3,41 M22.5,47 L41.5,47"
+                  Stroke="#E5F2FF" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.76" />
         </Canvas>
     </Viewbox>
 </UserControl>
