@@ -14,7 +14,9 @@ result in the release ticket.
       passes all harness cases, including the
       filter ladder, Adblock parsing, DNS NXDOMAIN construction, whitelist
       essentials, zero-domain cache guard, migration, lifetime counts, cleanup
-      verification, SSRF defenses, and transactional dual-stack listener suites.
+      verification, SSRF defenses, transactional dual-stack listeners, restart
+      intent, tray startup options, protected PIN writes, empty-DACL repair, and
+      unsafe-link rejection.
 - [ ] `build.ps1 -SkipInstaller` exits nonzero when any command fails and creates
       clean self-contained `win-x64` service/app publishes without stale files.
 - [ ] Inno Setup 6.4 or newer compiles `drawbridge.iss` without warnings.
@@ -23,8 +25,11 @@ result in the release ticket.
 
 - [ ] Begin with no `%ProgramData%\Drawbridge` and no `DrawbridgeService`.
 - [ ] Install as administrator and confirm the service display name is
-      **Drawbridge Filtering Service**, startup is delayed automatic, and the
+      **Drawbridge Filtering Service**, startup is automatic, and the
       process runs in Session 0.
+- [ ] Confirm the common Startup shortcut targets `Drawbridge.App.exe`, passes
+      `--startup`, uses the install directory as its working directory, and is
+      present after both a fresh install and an upgrade from 2.0.1.
 - [ ] Confirm `%ProgramData%\Drawbridge` grants full control only to SYSTEM and
       Administrators and read/execute to Users. From the child account, attempts
       to modify `settings.json` or delete `pin.json` must fail.
@@ -36,6 +41,9 @@ result in the release ticket.
       this first-install bootstrap step in deployment instructions.
 - [ ] Reboot. Before any interactive login, query the machine remotely or inspect
       the service/event log and prove filtering started.
+- [ ] Log in as a standard user. Confirm one non-elevated `Drawbridge.App.exe`
+      process starts in that interactive session, the dashboard does not flash or
+      appear on the taskbar, and the Drawbridge tray icon becomes available.
 - [ ] Log in, log out, and log in as a different user; filtering must survive.
 - [ ] Run `taskkill /F /IM Drawbridge.Service.exe` as administrator. Confirm SCM
       restarts it after approximately 5 seconds. Repeat and confirm the 15-second
@@ -45,6 +53,10 @@ result in the release ticket.
 - [ ] Stop the service normally with `sc stop DrawbridgeService`. Confirm adapter
       DNS is restored to automatic before the DNS listeners exit. Start it and
       confirm the saved desired routing is applied again.
+- [ ] On a disposable 2.0.0 install, reproduce the protected-empty-DACL defect and
+      its unversioned false routing preference, then upgrade. Confirm 2.0.2 repairs
+      descendant ownership/ACLs, restores routing once, and remains exact on a
+      second restart without exposing `pin.json` or an orphan `.pin.json.*.tmp`.
 - [ ] Occupy one required loopback port, start the service, and exhaust all six
       bind attempts. Confirm partial sockets are disposed, automatic DNS is
       restored even from a partially routed state, the API reports degraded
@@ -76,6 +88,14 @@ result in the release ticket.
 ## UI and modes
 
 - [ ] Run the app as the standard account. It must not request elevation.
+- [ ] Launch with `--startup` and `--minimized` separately; both must initialize
+      the tray and polling while keeping the dashboard hidden. A duplicate
+      automatic launch must exit silently, while a duplicate manual launch may
+      explain that Drawbridge is already running.
+- [ ] With two users concurrently signed in, confirm each session has exactly one
+      tray process and that signing out one session does not remove the other.
+      While the second session remains active, confirm setup detects the global
+      installer-presence marker and refuses to replace in-use files silently.
 - [ ] Verify the branded window, taskbar, Start-menu, and desktop shortcut icons;
       the castle tray icon's green/red status badge and tooltip; sidebar
       navigation; 2-second status/log refresh; and the 14-day chart.
@@ -131,11 +151,17 @@ result in the release ticket.
       in turn and confirm cleanup returns nonzero without clearing safety settings.
 - [ ] Upgrade over a running prior build. Confirm setup waits for SERVICE_STOPPED
       before replacing files, checks every service policy command, preserves
-      LocalSystem/delayed-auto/recovery settings, starts the service, and verifies
+      LocalSystem/automatic/recovery settings, starts the service, and verifies
       RUNNING. Cancel or inject a failure after the stop and confirm the retained
-      service is restarted rather than leaving dead loopback DNS.
+      service is restarted rather than leaving dead loopback DNS. On a failed
+      fresh install, also confirm no newly-created common Startup shortcut remains.
+- [ ] With a 2.0.1 control panel running in a different signed-in user's session,
+      confirm both upgrade and uninstall detect the process and refuse to replace
+      files until it exits, even though the legacy global mutex ACL is cross-user
+      inaccessible.
 - [ ] Re-enable settings, then uninstall. Confirm DNS is healthy, the firewall
-      rule is absent, `DrawbridgeService` is gone, and the legacy task is absent.
+      rule is absent, `DrawbridgeService` is gone, the common Startup shortcut is
+      removed, and the legacy task is absent.
 - [ ] Force cleanup or service deletion to fail during uninstall. Confirm uninstall
       aborts before removing files and restarts the previously running service; if
       restart is also forced to fail, confirm the emergency DNS guidance appears.

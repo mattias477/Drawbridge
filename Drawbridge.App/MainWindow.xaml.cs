@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private bool _allowSystemShutdown;
     private bool _updatingControls;
     private bool _migrationChecked;
+    private bool _interactivePromptsEnabled = true;
     private bool _disposed;
     private bool? _lastTrayBridgeState;
     private int _failedUnlockAttempts;
@@ -65,6 +66,20 @@ public partial class MainWindow : Window
         Closing += MainWindow_OnClosing;
         Closed += MainWindow_OnClosed;
         StateChanged += MainWindow_OnStateChanged;
+    }
+
+    /// <summary>Initializes the window lifecycle and tray icon without painting the dashboard.</summary>
+    internal void StartHiddenToTray()
+    {
+        _interactivePromptsEnabled = false;
+        ShowActivated = false;
+        ShowInTaskbar = false;
+        Opacity = 0;
+        Show();
+        Hide();
+        Opacity = 1;
+        ShowInTaskbar = true;
+        ShowActivated = true;
     }
 
     /// <summary>Allows the window to close during Windows logout or shutdown.</summary>
@@ -198,7 +213,7 @@ public partial class MainWindow : Window
                 await RefreshChartAsync(cancellationToken);
             }
 
-            if (!_migrationChecked && !_locked)
+            if (!_migrationChecked && !_locked && _interactivePromptsEnabled && IsVisible)
             {
                 await TryOfferMigrationAsync(cancellationToken);
             }
@@ -282,9 +297,13 @@ public partial class MainWindow : Window
         bool protectedState = status.BridgeUp && status.DnsRouted;
         string trayStatus = protectedState
             ? "Bridge raised — filtering active"
-            : status.BridgeUp
-                ? "Bridge raised — system DNS not routed"
-                : "Bridge lowered — filtering paused";
+            : !status.BridgeUp && status.DnsRouted
+                ? "Protection interrupted — Windows DNS still uses Drawbridge"
+                : status.DnsRoutingConfigured
+                    ? "Protection pending — service is retrying"
+                    : status.BridgeUp
+                        ? "Bridge ready — system DNS routing is off"
+                        : "Bridge lowered — filtering paused";
         UpdateTrayIcon(protectedState, trayStatus);
     }
 
@@ -324,23 +343,39 @@ public partial class MainWindow : Window
     private void UpdateStatusDisplay(ServiceStatus status)
     {
         bool protectedState = status.BridgeUp && status.DnsRouted;
+        bool routedWithoutListener = !status.BridgeUp && status.DnsRouted;
+        bool protectionPending = status.DnsRoutingConfigured && !protectedState;
         StatusDot.Fill = protectedState
             ? FindBrush("SuccessBrush")
             : status.BridgeUp
                 ? FindBrush("WarningBrush")
                 : FindBrush("DangerBrush");
         BridgeStatusText.Text = protectedState
-            ? "Bridge raised"
-            : status.BridgeUp
-                ? "Bridge raised — DNS not routed"
-                : "Bridge lowered";
+            ? "Protection active"
+            : routedWithoutListener
+                ? "Protection interrupted"
+                : protectionPending
+                    ? status.BridgeUp ? "Protection pending" : "Protection recovering"
+                    : status.BridgeUp
+                        ? "Protection ready"
+                        : "Protection paused";
         BridgeStatusDetailText.Text = protectedState
             ? $"Filtering in {status.Mode.ToLowerInvariant()} mode • system DNS routed"
-            : status.BridgeUp
-                ? "The DNS listener is ready, but Windows is not using it. Enable system DNS in Settings."
-                : "DNS filtering is paused; the Windows service remains available";
-        BridgeButton.Content = status.BridgeUp ? "Lower the bridge" : "Raise the bridge";
-        BridgeButton.Style = (Style)FindResource(status.BridgeUp ? "DangerButton" : "PrimaryButton");
+            : routedWithoutListener
+                ? "Windows DNS still points to Drawbridge, but the listener is unavailable. Retry protection now; restore automatic DNS in Settings if name resolution is interrupted."
+                : protectionPending
+                    ? status.BridgeUp
+                        ? "The DNS listener is ready and protection is requested. Drawbridge is waiting for Windows or a network adapter and will keep retrying."
+                        : "Protection remains requested, but the DNS listener is unavailable. The service will keep retrying automatically."
+                    : status.BridgeUp
+                        ? "The DNS listener is ready, but Windows is not using it. Activate protection to route system DNS."
+                        : "DNS filtering is paused; the Windows service remains available.";
+        BridgeButton.Content = protectedState
+            ? "Lower the bridge"
+            : protectionPending
+                ? "Retry protection"
+                : "Activate protection";
+        BridgeButton.Style = (Style)FindResource(protectedState ? "DangerButton" : "PrimaryButton");
         BridgeButton.IsEnabled = true;
         DomainCountText.Text = status.DomainCounts.Total.ToString("N0", CultureInfo.CurrentCulture);
         TodayCountText.Text = status.TodayBlocked.ToString("N0", CultureInfo.CurrentCulture);
@@ -349,7 +384,12 @@ public partial class MainWindow : Window
         UptimeText.Text = $"Uptime {FormatDuration(status.Uptime)}";
 
         _updatingControls = true;
-        RouteDnsToggle.IsChecked = status.DnsRouted;
+        RouteDnsToggle.IsChecked = status.DnsRoutingConfigured;
+        RouteDnsToggle.ToolTip = status.DnsRoutingConfigured && !status.DnsRouted
+            ? "System DNS routing is enabled and pending; Drawbridge will keep retrying."
+            : status.DnsRoutingConfigured
+                ? "System DNS routing is enabled."
+                : "System DNS routing is disabled.";
         WebMonitorToggle.IsChecked = status.WebMonitorEnabled;
         _updatingControls = false;
 
@@ -411,12 +451,20 @@ public partial class MainWindow : Window
         try
         {
             MigrationStatus migration = await _serviceClient.GetMigrationStatusAsync(legacyPath, cancellationToken);
-            _migrationChecked = true;
             if (!migration.Eligible || !migration.SourceExists)
+            {
+                _migrationChecked = true;
+                return;
+            }
+
+            // The panel may have been hidden while the service request was in flight.
+            // Do not surface or consume the one-time offer until the user opens it again.
+            if (!_interactivePromptsEnabled || !IsVisible)
             {
                 return;
             }
 
+            _migrationChecked = true;
             bool accepted = ConfirmationWindow.Ask(
                 this,
                 "Bring forward Drawbridge 1.x settings?",
@@ -469,7 +517,7 @@ public partial class MainWindow : Window
 
     private async void BridgeButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (_status?.BridgeUp == true)
+        if (_status is { BridgeUp: true, DnsRouted: true })
         {
             bool confirmed = ConfirmationWindow.Ask(
                 this,
@@ -485,7 +533,25 @@ public partial class MainWindow : Window
         }
         else
         {
-            await RunMutationAsync(token => _serviceClient.StartBridgeAsync(token), "Bridge raised. Filtering is active.");
+            await RunMutationAsync(async token =>
+            {
+                ProtectionActivationResult result = await _serviceClient.StartBridgeAsync(token);
+                if (result.BridgeUp && result.DnsRouted)
+                {
+                    ShowActionMessage("Protection activated. Windows DNS now routes through Drawbridge.");
+                }
+                else if (result.Pending)
+                {
+                    ShowActionMessage(
+                        "Protection requested. DNS routing is pending; the service will keep retrying.");
+                }
+                else
+                {
+                    ShowActionMessage(
+                        "Protection was requested, but the active state could not be confirmed. Drawbridge will keep checking.",
+                        isError: true);
+                }
+            }, string.Empty);
         }
     }
 
@@ -768,7 +834,11 @@ public partial class MainWindow : Window
         try
         {
             await operation(_lifetimeCancellation.Token);
-            ShowActionMessage(successMessage);
+            if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                ShowActionMessage(successMessage);
+            }
+
             if (pollAfter)
             {
                 await PollServiceAsync();
@@ -785,6 +855,14 @@ public partial class MainWindow : Window
             _serviceClient.AuthenticationPin = null;
             LockNow();
             LockErrorText.Text = exception.Message;
+            return false;
+        }
+        catch (ServiceRequestTimeoutException exception)
+        {
+            ShowActionMessage(
+                $"{exception.Message} The service may still be applying the change; refreshing status…",
+                isError: true);
+            await PollServiceAsync();
             return false;
         }
         catch (Exception exception) when (exception is HttpRequestException or ServiceApiException or System.Text.Json.JsonException)
@@ -1166,6 +1244,7 @@ public partial class MainWindow : Window
 
     private void ShowControlPanel()
     {
+        _interactivePromptsEnabled = true;
         if (!IsVisible)
         {
             Show();
@@ -1184,6 +1263,7 @@ public partial class MainWindow : Window
 
     private void HideToTray()
     {
+        _interactivePromptsEnabled = false;
         Hide();
         _notifyIcon.ShowBalloonTip(
             4000,

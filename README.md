@@ -70,9 +70,11 @@ invokes Inno Setup 6.4 or newer when `ISCC.exe` is found. Use `-SkipInstaller` w
 the verified publishes are needed. The installer is written to
 `artifacts\installer`.
 
-The installer creates or reconfigures `DrawbridgeService` as delayed automatic
+The installer creates or reconfigures `DrawbridgeService` as automatic
 under LocalSystem, applies the 5/15/60-second recovery sequence, and verifies
-that it reaches `RUNNING`. Upgrades stop the existing service before replacing
+that it reaches `RUNNING`. It also creates a machine-wide Startup shortcut that
+opens the unprivileged control panel directly in the notification area for each
+interactive user at logon. Upgrades stop the existing service before replacing
 files. Uninstall refuses to remove files if the service cannot stop or if DNS,
 firewall, and legacy-task cleanup reports a material failure. ProgramData is
 intentionally retained.

@@ -3,7 +3,7 @@
 #endif
 
 #define MyAppName "Drawbridge"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "Drawbridge"
 #define MyAppExeName "Drawbridge.App.exe"
 #define MyServiceExeName "Drawbridge.Service.exe"
@@ -19,7 +19,7 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-AppMutex=Global\DrawbridgeSingleInstance
+AppMutex=Global\DrawbridgeSingleInstance,Global\Drawbridge.App.InstallerPresence,Local\DrawbridgeSingleInstance
 OutputDir=artifacts\installer
 OutputBaseFilename=Drawbridge-{#MyAppVersion}-win-x64
 Compression=lzma2
@@ -38,6 +38,7 @@ Source: "artifacts\publish\app\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 [Icons]
 Name: "{group}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
 Name: "{autodesktop}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0; Tasks: desktopicon
+Name: "{commonstartup}\Drawbridge"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--startup"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
@@ -52,7 +53,38 @@ var
   SetupServiceWasStopped: Boolean;
   SetupCreatedService: Boolean;
   SetupCompleted: Boolean;
+  SetupStartupShortcutStateCaptured: Boolean;
+  SetupStartupShortcutExisted: Boolean;
   UninstallServiceWasActive: Boolean;
+
+function StartupShortcutPath: String;
+begin
+  Result := ExpandConstant('{commonstartup}\Drawbridge.lnk');
+end;
+
+function TrayProcessIsRunning: Boolean;
+var
+  ResultCode: Integer;
+  Output: TExecOutput;
+  I: Integer;
+begin
+  Result := False;
+  if not ExecAndCaptureOutput(ExpandConstant('{sys}\tasklist.exe'),
+    '/FI "IMAGENAME eq {#MyAppExeName}" /FO CSV /NH', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode, Output) or (ResultCode <> 0) then
+  begin
+    RaiseException('Running Drawbridge control panels could not be queried.');
+  end;
+
+  for I := 0 to GetArrayLength(Output.StdOut) - 1 do
+  begin
+    if Pos('"{#MyAppExeName}"', Output.StdOut[I]) > 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
 
 function ServiceExists: Boolean;
 var
@@ -203,14 +235,14 @@ begin
   begin
     RunRequired(ExpandConstant('{sys}\sc.exe'),
       'create DrawbridgeService binPath= "' + QuotedServicePath +
-      '" start= delayed-auto DisplayName= "Drawbridge Filtering Service"',
+      '" start= auto DisplayName= "Drawbridge Filtering Service"',
       'Creating DrawbridgeService');
     SetupCreatedService := True;
   end;
 
   RunRequired(ExpandConstant('{sys}\sc.exe'),
     'config DrawbridgeService binPath= "' + QuotedServicePath +
-    '" start= delayed-auto obj= LocalSystem ' +
+    '" start= auto obj= LocalSystem ' +
     'DisplayName= "Drawbridge Filtering Service"',
     'Configuring DrawbridgeService');
   RunRequired(ExpandConstant('{sys}\sc.exe'),
@@ -272,6 +304,15 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
+  if TrayProcessIsRunning then
+  begin
+    Result := 'The Drawbridge control panel is still running in a Windows ' +
+      'session. Exit Drawbridge from every user session, then retry setup.';
+    Exit;
+  end;
+
+  SetupStartupShortcutStateCaptured := True;
+  SetupStartupShortcutExisted := FileExists(StartupShortcutPath);
   SetupServiceWasActive := ServiceExists and not ServiceHasState('1');
   SetupServiceWasStopped := SetupServiceWasActive;
   if ServiceExists and not StopDrawbridgeService then
@@ -334,6 +375,15 @@ begin
     Exit;
   end;
 
+  if SetupStartupShortcutStateCaptured and
+    not SetupStartupShortcutExisted and FileExists(StartupShortcutPath) and
+    not DeleteFile(StartupShortcutPath) then
+  begin
+    MsgBox('Setup did not complete and the newly created Drawbridge Startup ' +
+      'shortcut could not be removed. Delete it manually from the common ' +
+      'Startup folder before the next sign-in.', mbCriticalError, MB_OK);
+  end;
+
   if SetupCreatedService then
   begin
     RollBackFailedFreshInstall;
@@ -376,6 +426,14 @@ begin
   if CurUninstallStep <> usUninstall then
   begin
     Exit;
+  end;
+
+  if TrayProcessIsRunning then
+  begin
+    MsgBox('The Drawbridge control panel is still running in a Windows ' +
+      'session. Exit Drawbridge from every user session, then run uninstall ' +
+      'again. No application files were removed.', mbCriticalError, MB_OK);
+    Abort;
   end;
 
   UninstallServiceWasActive := ServiceExists and not ServiceHasState('1');

@@ -39,11 +39,34 @@ documentation calls out setting the PIN immediately. The stored verifier is
 given a stricter SYSTEM/Administrators-only ACL than general ProgramData state,
 preventing a standard child from taking the hash away for offline guessing.
 
+## Interactive tray lifecycle
+
+Filtering starts in the LocalSystem service at boot, independently of any user
+session. The installer separately places an all-users Startup shortcut that
+launches the as-invoker WPF control panel with `--startup` at interactive logon.
+That mode creates the notification icon and begins polling without painting the
+dashboard or showing a login balloon. A per-session mutex permits one tray icon
+in each concurrently signed-in Windows session while suppressing duplicates in
+the same session. Each process also holds a non-exclusive global marker with an
+Authenticated-Users synchronize-only ACL so the elevated installer can detect
+tray processes in other sessions before replacing shared files. Marker failure
+is diagnostic-only and cannot suppress the per-session tray. The unsafe elevated
+v1 scheduled task remains a cleanup-only legacy artifact.
+
 ## DNS lifecycle
 
-On a genuinely fresh production data root, DNS routing defaults on so filtering
-is effective after installation and reboot. Explicit console-test roots never
-change adapter DNS by default.
+When a production service configuration is genuinely absent, DNS routing
+defaults on even if an upgrade or legacy import has already populated
+ProgramData. A saved explicit off preference normally wins. The one exception is
+an unversioned 2.0 configuration found during verified repair of the 2.0 empty-DACL
+defect; that affected state is re-enabled once during upgrade. Explicit
+console-test roots never change adapter DNS by default.
+
+The ProgramData root receives one exact inheritable ACL. Existing descendants are
+repaired through identity-locked, no-follow handles; reparse points and hardlinks
+are rejected, ownership is restored to SYSTEM, and the PIN is secured before any
+ordinary descendant. Recursive `/inheritance:r` is forbidden because it can leave
+ordinary files with an empty DACL and destroy restart persistence.
 
 Externally lowering the bridge restores automatic adapter DNS before stopping
 the listeners; if restoration cannot be verified, the stop is rejected. A
