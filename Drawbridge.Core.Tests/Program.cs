@@ -1,10 +1,15 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Diagnostics;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Drawbridge.Core;
+using Drawbridge.Service;
 
 namespace Drawbridge.Core.Tests;
 
@@ -13,6 +18,7 @@ internal static class Program
     private static readonly (string Name, Func<Task> Test)[] Tests =
     [
         ("fresh-install defaults", FreshInstallDefaultsAsync),
+        ("tray startup options", TrayStartupOptionsAsync),
         ("Adblock parser", AdblockParserAsync),
         ("specificity ladder", SpecificityLadderAsync),
         ("empty source list persists", EmptySourceListPersistsAsync),
@@ -23,9 +29,13 @@ internal static class Program
         ("concurrent updates serialize", ConcurrentUpdatesSerializeAsync),
         ("legacy cache and metadata migration", LegacyCacheMigrationAsync),
         ("legacy PIN compatibility", LegacyPinCompatibilityAsync),
+        ("PIN atomic write protects before content", PinAtomicWritePrivacyAsync),
         ("block history retention and lifetime count", BlockHistoryAsync),
         ("verified idempotent cleanup helpers", CleanupHelpersAsync),
         ("transactional dual-stack UDP/TCP server", DnsServerLifecycleAndPathsAsync),
+        ("service routing intent survives restart", ServiceRoutingIntentAsync),
+        ("production ACL repairs v2 restart damage", RestrictedAclRestartAsync),
+        ("production ACL rejects unsafe filesystem links", RestrictedAclReparseGuardAsync),
     ];
 
     private static async Task<int> Main()
@@ -64,6 +74,16 @@ internal static class Program
         Assert.True(service.IsBlocked(BlocklistService.FirefoxDohCanary));
         Assert.Equal(FilterMode.Blocklist, service.Mode);
         Assert.True(File.Exists(fixture.Paths.SettingsFile));
+        return Task.CompletedTask;
+    }
+
+    private static Task TrayStartupOptionsAsync()
+    {
+        Assert.False(Drawbridge.App.StartupOptions.Parse([]).StartHidden);
+        Assert.True(Drawbridge.App.StartupOptions.Parse(["--startup"]).StartHidden);
+        Assert.True(Drawbridge.App.StartupOptions.Parse(["--STARTUP"]).StartHidden);
+        Assert.True(Drawbridge.App.StartupOptions.Parse(["--minimized"]).StartHidden);
+        Assert.False(Drawbridge.App.StartupOptions.Parse(["--unknown"]).StartHidden);
         return Task.CompletedTask;
     }
 
@@ -311,6 +331,27 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task PinAtomicWritePrivacyAsync()
+    {
+        using var fixture = new TemporaryDirectory();
+        fixture.Paths.EnsureCreated();
+        bool preparedBeforeContent = false;
+        AtomicFile.WriteAllText(
+            fixture.Paths.PinFile,
+            "sensitive-verifier",
+            temporaryPath =>
+            {
+                preparedBeforeContent = true;
+                Assert.Equal(
+                    0L,
+                    new FileInfo(temporaryPath).Length,
+                    "The protection callback must run before any PIN verifier bytes are written.");
+            });
+        Assert.True(preparedBeforeContent);
+        Assert.Equal("sensitive-verifier", File.ReadAllText(fixture.Paths.PinFile));
+        return Task.CompletedTask;
+    }
+
     private static Task BlockHistoryAsync()
     {
         using var fixture = new TemporaryDirectory();
@@ -466,6 +507,438 @@ internal static class Program
 
         await server.StopAsync();
         Assert.False(server.IsRunning);
+    }
+
+    private static Task ServiceRoutingIntentAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.CompletedTask;
+        }
+
+        return ServiceRoutingIntentWindowsAsync();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Task ServiceRoutingIntentWindowsAsync()
+    {
+        Assert.True(ServiceStartupPolicy.DefaultDnsRouting(dataRootOverride: null));
+        Assert.False(ServiceStartupPolicy.DefaultDnsRouting("isolated-test-root"));
+
+        using var fixture = new TemporaryDirectory();
+        fixture.Paths.EnsureCreated();
+        File.WriteAllText(fixture.Paths.SettingsFile, "{}");
+
+        var created = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true);
+        Assert.True(
+            created.DnsRoutingEnabled,
+            "A missing production preference must default to protected even when ProgramData is populated.");
+
+        created.SetDnsRouting(false);
+        var explicitlyDisabled = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true);
+        Assert.False(
+            explicitlyDisabled.DnsRoutingEnabled,
+            "An explicit disabled preference must survive a service restart.");
+
+        File.WriteAllText(fixture.Paths.ServiceConfigFile, """
+            {
+              "DnsRoutingEnabled": false,
+              "WebMonitorEnabled": true,
+              "MigrationEligible": false
+            }
+            """);
+        var legacyExplicitlyDisabled = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true,
+            recoverLegacyRouting: false);
+        Assert.False(
+            legacyExplicitlyDisabled.DnsRoutingEnabled,
+            "A schema-0 disabled preference must remain disabled without exact v2 ACL-damage evidence.");
+
+        legacyExplicitlyDisabled.SetDnsRouting(true);
+        var restarted = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: false);
+        Assert.True(
+            restarted.DnsRoutingEnabled,
+            "Saved protection intent must win over the adapter's temporary DHCP state during restart.");
+
+        File.WriteAllText(fixture.Paths.ServiceConfigFile, "{not-json");
+        var recovered = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true);
+        Assert.True(recovered.DnsRoutingEnabled);
+        Assert.NotNull(recovered.RecoveryMessage);
+
+        File.WriteAllText(fixture.Paths.ServiceConfigFile, "{}");
+        var recoveredIncomplete = new ServiceConfigurationStore(
+            fixture.Paths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true);
+        Assert.True(
+            recoveredIncomplete.DnsRoutingEnabled,
+            "A truncated but syntactically valid configuration must fail protected.");
+        Assert.NotNull(recoveredIncomplete.RecoveryMessage);
+        return Task.CompletedTask;
+    }
+
+    private static Task RestrictedAclRestartAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.CompletedTask;
+        }
+
+        return RestrictedAclRestartWindowsAsync();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Task RestrictedAclRestartWindowsAsync()
+    {
+        using var fixture = new TemporaryDirectory();
+        string currentUserSid = WindowsIdentity.GetCurrent().User?.Value
+            ?? throw new InvalidOperationException("The test process has no Windows user SID.");
+        const string builtinUsersSid = "S-1-5-32-545";
+
+        var firstProcessPaths = new DrawbridgePaths(
+            fixture.Paths.RootDirectory,
+            secureAcl: true,
+            ownerSid: currentUserSid,
+            administratorsSid: currentUserSid,
+            readersSid: builtinUsersSid);
+        firstProcessPaths.EnsureCreated();
+        Assert.False(
+            firstProcessPaths.SecurityRepairPerformed,
+            "Creating a fresh secure data tree is not a security repair.");
+        Assert.False(
+            firstProcessPaths.LegacyEmptyDaclRepairPerformed,
+            "Creating a fresh secure data tree is not evidence of the v2.0 ACL defect.");
+
+        File.WriteAllText(firstProcessPaths.SettingsFile, "persisted-settings");
+        string cacheFile = Path.Combine(firstProcessPaths.CacheDirectory, "persisted.cache");
+        string logFile = Path.Combine(firstProcessPaths.LogsDirectory, "persisted.log");
+        File.WriteAllText(cacheFile, "persisted-cache");
+        File.WriteAllText(logFile, "persisted-log");
+        var configuration = new ServiceConfigurationStore(
+            firstProcessPaths,
+            dataRootWasEmpty: true,
+            defaultDnsRouting: true);
+        configuration.SetWebMonitor(true);
+        var pins = new PinService(firstProcessPaths);
+        pins.SetPin("2468");
+        string orphanedPinTemporary = Path.Combine(
+            firstProcessPaths.RootDirectory,
+            ".pin.json.999.deadbeef.tmp");
+        File.WriteAllText(orphanedPinTemporary, "orphaned-sensitive-verifier");
+        firstProcessPaths.ProtectSensitiveFile(orphanedPinTemporary);
+
+        // Reproduce the exact v2.0 failure: recursive /inheritance:r protected existing
+        // files with an empty DACL. The unversioned false setting is the poisoned routing
+        // preference that v2.0 wrote after it could no longer read the original true value.
+        File.WriteAllText(firstProcessPaths.ServiceConfigFile, """
+            {
+              "DnsRoutingEnabled": false,
+              "WebMonitorEnabled": true,
+              "MigrationEligible": false
+            }
+            """);
+        foreach (string damagedFile in new[]
+                 {
+                     firstProcessPaths.SettingsFile,
+                     cacheFile,
+                     logFile,
+                     firstProcessPaths.ServiceConfigFile,
+                     firstProcessPaths.PinFile,
+                     orphanedPinTemporary,
+                 })
+        {
+            ApplyProtectedEmptyAcl(damagedFile, currentUserSid);
+            FileSecurity damagedAcl = new FileInfo(damagedFile).GetAccessControl();
+            Assert.True(damagedAcl.AreAccessRulesProtected);
+            Assert.Empty(damagedAcl.GetAccessRules(
+                includeExplicit: true,
+                includeInherited: true,
+                typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>());
+            var exactEmptyDescriptor = new RawSecurityDescriptor(
+                damagedAcl.GetSecurityDescriptorBinaryForm(),
+                0);
+            Assert.True(
+                DrawbridgePaths.IsProtectedEmptyDacl(exactEmptyDescriptor),
+                "The legacy recovery predicate must recognize the exact v2.0 empty-DACL signature.");
+
+            // The harness runs unelevated and does not hold LocalSystem's restore privilege.
+            // After proving the exact empty DACL, grant only security-descriptor control so
+            // the same handle-based repair path can run; no file-data access is granted.
+            GrantAclRepairRights(damagedFile, currentUserSid);
+
+        }
+
+        // A new paths instance models the next service process and must repair every file
+        // without first reading it or briefly exposing the PIN to builtin Users.
+        var secondProcessPaths = new DrawbridgePaths(
+            fixture.Paths.RootDirectory,
+            secureAcl: true,
+            ownerSid: currentUserSid,
+            administratorsSid: currentUserSid,
+            readersSid: builtinUsersSid);
+        secondProcessPaths.EnsureCreated();
+        Assert.True(
+            secondProcessPaths.SecurityRepairPerformed,
+            "The exact protected-empty-DACL state must be detected as legacy damage.");
+        Assert.False(
+            secondProcessPaths.LegacyEmptyDaclRepairPerformed,
+            "The test-only repair ACE must not broaden the production empty-DACL recovery signal.");
+
+        Assert.Equal("persisted-settings", File.ReadAllText(secondProcessPaths.SettingsFile));
+        Assert.Equal("persisted-cache", File.ReadAllText(cacheFile));
+        Assert.Equal("persisted-log", File.ReadAllText(logFile));
+        File.AppendAllText(logFile, "-continued");
+        Assert.Equal("persisted-log-continued", File.ReadAllText(logFile));
+
+        // Production LocalSystem sees the literal empty descriptor before repair and passes
+        // LegacyEmptyDaclRepairPerformed. The unelevated harness proved that predicate above,
+        // then added its descriptor-only ACE, so exercise the configuration half explicitly.
+        var reloaded = new ServiceConfigurationStore(
+            secondProcessPaths,
+            dataRootWasEmpty: false,
+            defaultDnsRouting: true,
+            recoverLegacyRouting: true);
+        Assert.True(
+            reloaded.DnsRoutingEnabled,
+            "The affected schema-0 false preference must be re-enabled once after verified ACL repair.");
+        Assert.True(reloaded.WebMonitorEnabled);
+        Assert.NotNull(reloaded.RecoveryMessage);
+        Assert.True(new PinService(secondProcessPaths).Verify("2468"));
+
+        FileSecurity ordinaryAcl = new FileInfo(logFile).GetAccessControl();
+        Assert.False(
+            ordinaryAcl.AreAccessRulesProtected,
+            "Ordinary persisted files must inherit the protected root ACL.");
+        FileSecurity pinAcl = new FileInfo(secondProcessPaths.PinFile).GetAccessControl();
+        Assert.True(pinAcl.AreAccessRulesProtected, "The PIN must retain its stricter private ACL.");
+        bool pinAllowsBuiltinUsers = pinAcl
+            .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+            .OfType<FileSystemAccessRule>()
+            .Any(rule =>
+                rule.AccessControlType == AccessControlType.Allow &&
+                string.Equals(rule.IdentityReference.Value, builtinUsersSid, StringComparison.Ordinal));
+        Assert.False(pinAllowsBuiltinUsers, "The PIN hash must not be readable through the Users group.");
+        FileSecurity orphanedPinAcl = new FileInfo(orphanedPinTemporary).GetAccessControl();
+        Assert.True(
+            orphanedPinAcl.AreAccessRulesProtected,
+            "A crash-left PIN temporary file must retain the private ACL during repair.");
+        Assert.False(
+            orphanedPinAcl
+                .GetAccessRules(true, true, typeof(SecurityIdentifier))
+                .OfType<FileSystemAccessRule>()
+                .Any(rule =>
+                    rule.AccessControlType == AccessControlType.Allow &&
+                    string.Equals(rule.IdentityReference.Value, builtinUsersSid, StringComparison.Ordinal)),
+            "A crash-left PIN temporary file must never become Users-readable.");
+        Assert.Equal("orphaned-sensitive-verifier", File.ReadAllText(orphanedPinTemporary));
+        Assert.Equal(
+            currentUserSid,
+            ordinaryAcl.GetOwner(typeof(SecurityIdentifier))?.Value,
+            "Ordinary file ownership must be restored to the configured service identity.");
+        Assert.Equal(
+            currentUserSid,
+            pinAcl.GetOwner(typeof(SecurityIdentifier))?.Value,
+            "PIN ownership must be restored to the configured service identity.");
+
+        var thirdProcessPaths = new DrawbridgePaths(
+            fixture.Paths.RootDirectory,
+            secureAcl: true,
+            ownerSid: currentUserSid,
+            administratorsSid: currentUserSid,
+            readersSid: builtinUsersSid);
+        thirdProcessPaths.EnsureCreated();
+        Assert.False(
+            thirdProcessPaths.SecurityRepairPerformed,
+            "A fully repaired tree must remain exact and must not retrigger legacy recovery every restart.");
+        Assert.False(
+            thirdProcessPaths.LegacyEmptyDaclRepairPerformed,
+            "The one-time v2.0 routing recovery signal must clear after the damaged ACLs are repaired.");
+        return Task.CompletedTask;
+    }
+
+    private static Task RestrictedAclReparseGuardAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.CompletedTask;
+        }
+
+        return RestrictedAclReparseGuardWindowsAsync();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Task RestrictedAclReparseGuardWindowsAsync()
+    {
+        string currentUserSid = WindowsIdentity.GetCurrent().User?.Value
+            ?? throw new InvalidOperationException("The test process has no Windows user SID.");
+        const string builtinUsersSid = "S-1-5-32-545";
+
+        using var rootParent = new TemporaryDirectory();
+        using var outside = new TemporaryDirectory();
+        Directory.CreateDirectory(rootParent.Paths.RootDirectory);
+        Directory.CreateDirectory(outside.Paths.RootDirectory);
+
+        string linkedRoot = Path.Combine(rootParent.Paths.RootDirectory, "linked-root");
+        CreateJunction(linkedRoot, outside.Paths.RootDirectory);
+        try
+        {
+            var linkedPaths = new DrawbridgePaths(
+                linkedRoot,
+                secureAcl: true,
+                ownerSid: currentUserSid,
+                administratorsSid: currentUserSid,
+                readersSid: builtinUsersSid);
+            Assert.Throws<InvalidOperationException>(() => linkedPaths.EnsureCreated());
+            Assert.False(
+                Directory.Exists(Path.Combine(outside.Paths.RootDirectory, "cache")),
+                "A root reparse target must not be traversed before rejection.");
+        }
+        finally
+        {
+            Directory.Delete(linkedRoot);
+        }
+
+        using var fixture = new TemporaryDirectory();
+        var initial = new DrawbridgePaths(
+            fixture.Paths.RootDirectory,
+            secureAcl: true,
+            ownerSid: currentUserSid,
+            administratorsSid: currentUserSid,
+            readersSid: builtinUsersSid);
+        initial.EnsureCreated();
+
+        string outsidePinDirectory = Path.Combine(outside.Paths.RootDirectory, "outside-pin");
+        Directory.CreateDirectory(outsidePinDirectory);
+        string outsideFile = Path.Combine(outsidePinDirectory, "sentinel.txt");
+        File.WriteAllText(outsideFile, "must-remain-untouched");
+        CreateJunction(initial.PinFile, outsidePinDirectory);
+        try
+        {
+            var restarted = new DrawbridgePaths(
+                fixture.Paths.RootDirectory,
+                secureAcl: true,
+                ownerSid: currentUserSid,
+                administratorsSid: currentUserSid,
+                readersSid: builtinUsersSid);
+            Assert.Throws<InvalidOperationException>(() => restarted.EnsureCreated());
+            Assert.Equal("must-remain-untouched", File.ReadAllText(outsideFile));
+        }
+        finally
+        {
+            Directory.Delete(initial.PinFile);
+        }
+
+        string outsideHardlinkTarget = Path.Combine(outside.Paths.RootDirectory, "outside-hardlink.txt");
+        File.WriteAllText(outsideHardlinkTarget, "external-acl-must-not-change");
+        byte[] outsideAclBefore = new FileInfo(outsideHardlinkTarget)
+            .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner)
+            .GetSecurityDescriptorBinaryForm();
+        string hardlinkInsideRoot = Path.Combine(initial.RootDirectory, "linked-cache.bin");
+        CreateHardLink(hardlinkInsideRoot, outsideHardlinkTarget);
+        try
+        {
+            var restarted = new DrawbridgePaths(
+                fixture.Paths.RootDirectory,
+                secureAcl: true,
+                ownerSid: currentUserSid,
+                administratorsSid: currentUserSid,
+                readersSid: builtinUsersSid);
+            Assert.Throws<InvalidOperationException>(() => restarted.EnsureCreated());
+            byte[] outsideAclAfter = new FileInfo(outsideHardlinkTarget)
+                .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner)
+                .GetSecurityDescriptorBinaryForm();
+            Assert.SequenceEqual(
+                outsideAclBefore,
+                outsideAclAfter,
+                "Rejecting an in-root hardlink must not mutate its external target ACL.");
+            Assert.Equal("external-acl-must-not-change", File.ReadAllText(outsideHardlinkTarget));
+        }
+        finally
+        {
+            File.Delete(hardlinkInsideRoot);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void ApplyProtectedEmptyAcl(string path, string ownerSid)
+    {
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(new SecurityIdentifier(ownerSid));
+        new FileInfo(path).SetAccessControl(security);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void GrantAclRepairRights(string path, string identitySid)
+    {
+        FileInfo file = new(path);
+        FileSecurity security = file.GetAccessControl();
+        security.AddAccessRule(new FileSystemAccessRule(
+            new SecurityIdentifier(identitySid),
+            FileSystemRights.ReadPermissions |
+            FileSystemRights.ChangePermissions |
+            FileSystemRights.TakeOwnership,
+            AccessControlType.Allow));
+        file.SetAccessControl(security);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void CreateJunction(string link, string target)
+        => CreateFilesystemLink(link, target, "/J");
+
+    [SupportedOSPlatform("windows")]
+    private static void CreateHardLink(string link, string target)
+        => CreateFilesystemLink(link, target, "/H");
+
+    [SupportedOSPlatform("windows")]
+    private static void CreateFilesystemLink(string link, string target, string kind)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+        };
+        process.StartInfo.ArgumentList.Add("/d");
+        process.StartInfo.ArgumentList.Add("/c");
+        process.StartInfo.ArgumentList.Add("mklink");
+        process.StartInfo.ArgumentList.Add(kind);
+        process.StartInfo.ArgumentList.Add(link);
+        process.StartInfo.ArgumentList.Add(target);
+        if (!process.Start())
+        {
+            throw new InvalidOperationException("Could not start mklink for the filesystem-link test.");
+        }
+
+        string standardOutput = process.StandardOutput.ReadToEnd();
+        string standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Could not create the test filesystem link: {standardError}{standardOutput}");
+        }
     }
 
     private static async Task ReadExactlyAsync(NetworkStream stream, Memory<byte> destination)

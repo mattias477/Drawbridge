@@ -30,11 +30,8 @@ int controlApiPort = consoleMode ? GetPortOption(args, "--api-port", 8054) : 805
 var paths = dataRootOverride is null
     ? new DrawbridgePaths()
     : new DrawbridgePaths(dataRootOverride);
-string dataRoot = paths.RootDirectory;
-bool dataRootWasEmpty = !Directory.Exists(dataRoot) ||
-                        !Directory.EnumerateFileSystemEntries(dataRoot).Any();
-
 paths.EnsureCreated();
+bool dataRootWasEmpty = paths.WasEmptyBeforeEnsureCreated;
 
 var blocklists = new BlocklistService(paths);
 var blockLog = new BlockLogService(paths);
@@ -48,9 +45,12 @@ var webMonitor = new WebMonitorService(
     () => blocklists.BlockedDomainCount,
     () => blocklists.Mode,
     paths);
-bool defaultDnsRouting = dataRootOverride is null &&
-                         (dataRootWasEmpty || SystemIntegration.IsDnsPointedAtDrawbridge());
-var serviceConfig = new ServiceConfigurationStore(paths, dataRootWasEmpty, defaultDnsRouting);
+bool defaultDnsRouting = ServiceStartupPolicy.DefaultDnsRouting(dataRootOverride);
+var serviceConfig = new ServiceConfigurationStore(
+    paths,
+    dataRootWasEmpty,
+    defaultDnsRouting,
+    recoverLegacyRouting: paths.LegacyEmptyDaclRepairPerformed && defaultDnsRouting);
 var recentLogs = new RecentLogBuffer(paths.LogsDirectory);
 var runtimeOptions = new ServiceRuntimeOptions(controlApiPort);
 

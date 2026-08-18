@@ -22,8 +22,30 @@ internal static class AtomicFile
 
         try
         {
-            File.WriteAllText(temporaryPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            // Publish only an empty placeholder before applying any caller-supplied ACL.
+            // Secret records (notably the PIN verifier) are therefore protected before
+            // their first byte is written, rather than briefly inheriting Users read access.
+            using (new FileStream(
+                       temporaryPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None))
+            {
+            }
+
             prepareTemporaryFile?.Invoke(temporaryPath);
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.Truncate,
+                       FileAccess.Write,
+                       FileShare.None))
+            using (var writer = new StreamWriter(
+                       stream,
+                       new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                writer.Write(contents);
+            }
+
             File.Move(temporaryPath, path, overwrite: true);
         }
         finally

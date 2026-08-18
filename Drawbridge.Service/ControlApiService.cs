@@ -253,15 +253,56 @@ internal sealed class ControlApiService : BackgroundService
 
             if (method == "POST" && path == "/api/bridge/start")
             {
+                // Activation records the parent's desired state before attempting the
+                // listener bind. A transient port conflict must not turn a later
+                // maintenance recovery into a listener-only, system-DNS-bypassed state.
+                _configuration.SetDnsRouting(true);
                 bool raised = await _bridge.RaiseAsync(cancellationToken);
                 if (!raised)
                 {
+                    if (HasAnyLoopbackDns())
+                    {
+                        _logger.LogError(
+                            "Bridge activation failed while Windows DNS still referenced loopback; restoring automatic DNS before returning the bind failure.");
+                        await _systemChanges.RunAsync(
+                            () => SystemIntegration.RestoreAutomaticDns(LogSystemMessage),
+                            cancellationToken);
+                        if (HasAnyLoopbackDns())
+                        {
+                            throw new ApiException(
+                                HttpStatusCode.InternalServerError,
+                                "Port 53 could not be bound and Windows DNS could not be restored safely. Drawbridge will keep retrying; restore automatic DNS manually if name resolution is unavailable.");
+                        }
+                    }
+
                     throw new ApiException(
                         HttpStatusCode.ServiceUnavailable,
-                        "Port 53 could not be bound after six attempts.");
+                        "Port 53 could not be bound after six attempts. Protection remains requested and the service will retry.");
                 }
 
-                await WriteJsonAsync(response, new { bridgeUp = true }, cancellationToken);
+                // The endpoint is deliberately idempotent: an already-running listener still
+                // reconciles adapter routing. Re-read actual state after the command rather
+                // than reporting command exit codes as protection state.
+                bool commandSucceeded = IsDnsRouted() || await _systemChanges.RunAsync(
+                    () => SystemIntegration.PointDnsAtDrawbridge(LogSystemMessage),
+                    cancellationToken);
+                bool dnsRouted = IsDnsRouted();
+                if (!commandSucceeded || !dnsRouted)
+                {
+                    _logger.LogWarning(
+                        "Bridge is raised and protection remains desired, but system DNS is not fully routed yet; maintenance will retry.");
+                }
+
+                await WriteJsonAsync(
+                    response,
+                    new
+                    {
+                        bridgeUp = _dns.IsRunning,
+                        dnsRouted,
+                        dnsRoutingConfigured = _configuration.DnsRoutingEnabled,
+                        pending = !dnsRouted,
+                    },
+                    cancellationToken);
                 return;
             }
 
@@ -640,8 +681,9 @@ internal sealed class ControlApiService : BackgroundService
         todayBlocked = _blockLog.TodayBlocked,
         allTimeBlocked = _blockLog.AllTimeBlocked,
         uptime = DateTimeOffset.UtcNow - _startedAt,
-        version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "2.0.0",
+        version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "2.0.2",
         dnsRouted = IsDnsRouted(),
+        dnsRoutingConfigured = _configuration.DnsRoutingEnabled,
         webMonitorEnabled = _webMonitor.IsRunning,
         webMonitorUrls = _webMonitor.Urls(),
         pinSet = _pin.HasPin,

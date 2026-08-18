@@ -38,8 +38,22 @@ internal sealed class ServiceClient : IDisposable
     public Task<ServiceStatus> GetStatusAsync(CancellationToken cancellationToken = default) =>
         GetJsonAsync<ServiceStatus>("api/status", cancellationToken);
 
-    public Task StartBridgeAsync(CancellationToken cancellationToken = default) =>
-        SendNoResultAsync(HttpMethod.Post, "api/bridge/start", new { }, authenticate: true, cancellationToken);
+    public async Task<ProtectionActivationResult> StartBridgeAsync(CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post,
+            "api/bridge/start",
+            new { },
+            authenticate: true,
+            authenticationOverride: null,
+            cancellationToken);
+        ProtectionActivationResult? result = await response.Content.ReadFromJsonAsync<ProtectionActivationResult>(
+            JsonOptions,
+            cancellationToken);
+        return result ?? throw new ServiceApiException(
+            "The service returned an empty protection result.",
+            response.StatusCode);
+    }
 
     public Task StopBridgeAsync(CancellationToken cancellationToken = default) =>
         SendNoResultAsync(HttpMethod.Post, "api/bridge/stop", new { }, authenticate: true, cancellationToken);
@@ -370,7 +384,7 @@ internal sealed class ServiceClient : IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new HttpRequestException("The Drawbridge service did not respond in time.");
+            throw new ServiceRequestTimeoutException("The Drawbridge service did not respond in time.");
         }
 
         if (response.StatusCode == HttpStatusCode.Unauthorized && allowUnauthorized)
@@ -409,6 +423,11 @@ internal sealed class ServiceClient : IDisposable
             path.StartsWith("api/system/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("api/webmonitor", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("api/migration", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromMinutes(2);
+        }
+
+        if (path.StartsWith("api/bridge/start", StringComparison.OrdinalIgnoreCase))
         {
             return TimeSpan.FromMinutes(2);
         }

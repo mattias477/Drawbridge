@@ -4,6 +4,7 @@ namespace Drawbridge.Service;
 
 internal sealed class DrawbridgeWorker : BackgroundService
 {
+    private static readonly TimeSpan BridgeMaintenanceInterval = TimeSpan.FromSeconds(10);
     private readonly BridgeController _bridge;
     private readonly DnsServer _dns;
     private readonly BlocklistService _blocklists;
@@ -40,6 +41,17 @@ internal sealed class DrawbridgeWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (_configuration.RecoveryMessage is { } recoveryMessage)
+        {
+            _logger.LogWarning("Configuration: {Message}", recoveryMessage);
+        }
+
+        if (!_configuration.DnsRoutingEnabled)
+        {
+            _logger.LogWarning(
+                "System DNS routing is disabled; the local DNS listeners may be running, but Windows traffic is not protected.");
+        }
+
         if (_configuration.WebMonitorEnabled || _webMonitor.WasEnabled)
         {
             try
@@ -88,7 +100,7 @@ internal sealed class DrawbridgeWorker : BackgroundService
 
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(BridgeMaintenanceInterval, stoppingToken);
             }
             catch (OperationCanceledException)
             {

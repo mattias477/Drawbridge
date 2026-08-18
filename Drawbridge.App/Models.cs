@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -30,6 +31,9 @@ internal sealed class ServiceStatus
     [JsonPropertyName("dnsRouted")]
     public bool DnsRouted { get; init; }
 
+    [JsonPropertyName("dnsRoutingConfigured")]
+    public bool DnsRoutingConfigured { get; init; }
+
     [JsonPropertyName("webMonitorEnabled")]
     public bool WebMonitorEnabled { get; init; }
 
@@ -38,6 +42,21 @@ internal sealed class ServiceStatus
 
     [JsonPropertyName("pinSet")]
     public bool PinSet { get; init; }
+}
+
+internal sealed class ProtectionActivationResult
+{
+    [JsonPropertyName("bridgeUp")]
+    public bool BridgeUp { get; init; }
+
+    [JsonPropertyName("dnsRouted")]
+    public bool DnsRouted { get; init; }
+
+    [JsonPropertyName("dnsRoutingConfigured")]
+    public bool DnsRoutingConfigured { get; init; }
+
+    [JsonPropertyName("pending")]
+    public bool Pending { get; init; }
 }
 
 [JsonConverter(typeof(DomainCountsConverter))]
@@ -219,6 +238,14 @@ internal sealed class ServiceUnauthorizedException : ServiceApiException
 {
     public ServiceUnauthorizedException(string message)
         : base(message, System.Net.HttpStatusCode.Unauthorized)
+    {
+    }
+}
+
+internal sealed class ServiceRequestTimeoutException : HttpRequestException
+{
+    public ServiceRequestTimeoutException(string message)
+        : base(message)
     {
     }
 }
